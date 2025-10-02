@@ -20,12 +20,16 @@
   position: relative;
 }
 .mat-hand-overlay {
-  position: sticky;
-  bottom: 0;
-  z-index: 30;
+  /* fixed bottom-center overlay so hand stays visible and centered */
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 16px;
+  z-index: 60;
   display: flex;
   justify-content: center;
-  pointer-events: none;
+  pointer-events: none; /* container ignores pointer events; inner row accepts */
+  width: auto;
 }
 .mat-hand-row {
   pointer-events: auto;

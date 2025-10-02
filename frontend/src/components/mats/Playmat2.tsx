@@ -1,8 +1,8 @@
 // Playmat2.tsx
 /* src/components/mats/Playmat2.tsx */
 //  has the 2-player layout and logic for tracking last played card in discard
-import React, { useState } from "react";
-import { createPortal } from "react-dom";
+import React from "react";
+// createPortal removed — overlay now handles hand
 import { DroppableBind } from "../DropZones";
 import { useDroppable } from "@dnd-kit/core";
 
@@ -34,16 +34,14 @@ const Playmat2: React.FC<PlaymatProps> = ({
   discardImages = [],
   playerCardMap,
 }) => {
-  const [openHandFor, setOpenHandFor] = useState<PlayerKey | null>(null);
-
+  // hand modal removed; overlay shows the hand
   // pull the true pids from layout
   const pidMap: Record<PlayerKey, string> = {
     p1: layout.p1 ?? "",
     p2: layout.p2 ?? "",
   };
 
-  const openHand = (pk: PlayerKey) => () => setOpenHandFor(pk);
-  const closeHand = () => setOpenHandFor(null);
+  // hand modal removed
 
   // ---- dnd-kit droppable zones (per seat) ---------------------------
   const { setNodeRef: setP1BankRef, isOver: p1BankOver } = useDroppable({
@@ -75,7 +73,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
   const nameFor = (pid?: string) => (pid && names[pid]) || "Opponent";
 
   return (
-    <div className="playing-mat-outline-2-players">
+  <div className="playing-mat-outline-2-players" data-my-pid={myPID}>
       {/* board backdrop */}
       <img className="backdrop" src={backdrop} alt="2-player backdrop" />
 
@@ -128,17 +126,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
                 ))}
               </div>
             )}
-            {myPID === pidMap.p1 && (
-              <button
-                className="hand-toggle bg-game-gold hover:bg-yellow-400 
-                           text-gray-800 font-medium px-3 py-1 rounded-md 
-                           shadow-md hover:shadow-lg transition-all duration-200
-                           border border-yellow-300"
-                onClick={openHand("p1")}
-              >
-                Hand
-              </button>
-            )}
+            {/* hand button removed - overlay shows cards */}
           </div>
         </div>
 
@@ -180,17 +168,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
             >
               <DroppableBind zoneId="p2-bank" />
             </div>
-              {myPID === pidMap.p2 && (
-              <button
-                className="hand-toggle bg-game-gold hover:bg-yellow-400 
-                           text-gray-800 font-medium px-3 py-1 rounded-md 
-                           shadow-md hover:shadow-lg transition-all duration-200
-                           border border-yellow-300"
-                onClick={openHand("p2")}
-              >
-                Hand
-              </button>
-            )}
+            {/* hand button removed - overlay shows cards */}
               {playerCardMap && playerCardMap[pidMap.p2] && (
                 <div className="bank-cards mt-2 flex gap-1 flex-wrap" aria-hidden>
                   {playerCardMap[pidMap.p2].bank.map((src: string, i: number) => (
@@ -220,22 +198,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
         </div>
       </div>
 
-      {/* -------------------- Hand modal (local player) -------------- */}
-      {openHandFor &&
-        myPID === pidMap[openHandFor] &&
-        createPortal(
-          <div className="hand-modal" onClick={closeHand}>
-            <div
-              className="hand-modal-inner"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2>Your hand</h2>
-              {/* TODO – map real cards here if you want a modal hand view */}
-              <button onClick={closeHand}>Close</button>
-            </div>
-          </div>,
-          document.body
-        )}
+  {/* hand modal removed — overlay serves as the hand */}
     </div>
   );
 };

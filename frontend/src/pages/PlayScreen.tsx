@@ -11,6 +11,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   PLAYERS_KEY,
@@ -182,6 +183,7 @@ const PlayScreen: React.FC = () => {
   const [game, setGame] = useState<ServerGameState | null>(null);
   const [myHand, setMyHand] = useState<ServerCard[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [handExpanded, setHandExpanded] = useState(true);
   const [wsReady, setWsReady] = useState(false);
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
@@ -574,23 +576,24 @@ const PlayScreen: React.FC = () => {
           />
         </div>
 
-        {/* Actions */}
-        <div className="play-actions">
-          <button
-            className="endturn-btn bg-game-blue hover:bg-blue-600 disabled:bg-gray-500 
-                       text-white font-semibold px-4 py-2 rounded-lg 
-                       transition-colors duration-200 shadow-md hover:shadow-lg"
-            onClick={sendEndTurn}
-            disabled={!isMyTurn}
-          >
-            End Turn
-          </button>
-        </div>
+    {/* Actions: the End Turn button is rendered as a portal into document.body
+      so it centers relative to the viewport (not the transformed .mat-stage) */}
 
         {/* Hand */}
         <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
           <div className="mat-hand-row">
-          {myHand.map((card, idx) => {
+            <div className="flex items-center gap-3 mr-2">
+              <button
+                className="hand-collapse-btn"
+                onClick={() => setHandExpanded((s) => !s)}
+                aria-expanded={handExpanded ? "true" : "false"}
+                title={handExpanded ? "Hide hand" : "Show hand"}
+              >
+                {handExpanded ? "Hide" : `${myName || "Your"} hand`}
+              </button>
+              <div className="text-sm font-medium">{myName || "Your hand"}</div>
+            </div>
+            {handExpanded && myHand.map((card, idx) => {
             const canDrag =
               isMyTurn &&
               playsLeft > 0 &&
@@ -620,6 +623,20 @@ const PlayScreen: React.FC = () => {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Portal-mounted End Turn button (centers on viewport) */}
+      {typeof document !== "undefined"
+        ? createPortal(
+            <button
+              className="end-turn-button"
+              onClick={sendEndTurn}
+              disabled={!isMyTurn}
+            >
+              End Turn
+            </button>,
+            document.body
+          )
+        : null}
 
       {/* Inline property color picker / bank action */}
       {menuCard && (

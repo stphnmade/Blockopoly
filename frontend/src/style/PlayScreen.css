@@ -23,6 +23,7 @@ body,
   left: 12px;
   z-index: 10;
   display: flex;
+  display: flex;
   gap: 16px;
   padding: 6px 10px;
   background: rgba(0, 0, 0, 0.45);
@@ -65,6 +66,20 @@ body,
 .hand-overlay .hand-card {
   transform: translateY(0) scale(1);
   opacity: 1;
+}
+
+/* ensure hand cards are visible when using mat-hand-overlay */
+.mat-hand-overlay .hand-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* stronger rule to override any ordering issues; make overlay cards slightly smaller to fit */
+.mat-hand-row .hand-card {
+  width: 96px;
+  height: 136px;
+  transform: translateY(0) scale(1) !important;
+  opacity: 1 !important;
 }
 
 .hand-card img {
@@ -111,13 +126,8 @@ body,
 
 /* Play actions */
 .play-actions {
-  position: absolute;
-  bottom: 180px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 12px;
-  z-index: 10;
+  /* kept for legacy markup but hidden because the End Turn button is portal-mounted */
+  display: none;
 }
 .endturn-btn {
   padding: 8px 12px;

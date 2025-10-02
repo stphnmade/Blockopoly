@@ -71,7 +71,7 @@
   top: 50%;
   transform: translate(-50%, -50%);
   display: flex;
-  gap: 1rem;
+  gap: 6rem;
   align-items: center;
   justify-content: center;
   z-index: 10;
@@ -149,10 +149,11 @@
 }
 .hand-modal-inner {
   background: #fff;
-  padding: 1.5rem 2rem;
+  /* slightly larger overlay for better card readability */
+  padding: 2rem 2.5rem;
   border-radius: 0.5rem;
-  max-width: 90vw;
-  max-height: 80vh;
+  max-width: 95vw;
+  max-height: 86vh;
   overflow: auto;
 }
 
@@ -191,6 +192,30 @@
 
 .hand-toggle:hover {
   background: #ffd700;
+}
+
+/* End-turn button positioned centered above the hand overlay/modal */
+.end-turn-button {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  /* fixed distance from bottom of viewport as requested */
+  bottom: 180px;
+  z-index: 1001; /* higher than .hand-modal */
+  padding: 0.6rem 1rem;
+  background: #ff7a59;
+  color: #fff;
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  border: none;
+  font-weight: 600;
+  pointer-events: auto;
+}
+
+@media (max-height: 700px) {
+  /* on very short screens nudge the button a bit higher */
+  .end-turn-button { bottom: 150px; }
 }
 
 /* Enhanced droppable zone styling for better visibility */
