@@ -3,10 +3,13 @@
 //  has the 2-player layout and logic for tracking last played card in discard
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
+import { DroppableBind } from "../DropZones";
 import { useDroppable } from "@dnd-kit/core";
 
 /* ------- images ------- */
 import backdrop from "@/assets/Backdrop.svg";
+
+const cardBack = new URL("../../assets/cards/card-back.svg", import.meta.url).href;
 
 import "@/components/mats/mat_styles/playmat_shared.css";
 import "./mat_styles/Playmat2.css";
@@ -19,6 +22,7 @@ export type PlaymatProps = {
   myPID: string;
   names: Record<string, string>;
   discardImages?: string[]; // newest last
+  playerCardMap?: Record<string, { bank: string[]; properties: Record<string, string[]> }>;
 };
 
 type PlayerKey = "p1" | "p2";
@@ -28,6 +32,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
   myPID,
   names,
   discardImages = [],
+  playerCardMap,
 }) => {
   const [openHandFor, setOpenHandFor] = useState<PlayerKey | null>(null);
 
@@ -84,7 +89,26 @@ const Playmat2: React.FC<PlaymatProps> = ({
             ref={setP1PropsRef}
             aria-label={`${nameFor(pidMap.p1)} property collection`}
           >
-            <div className="property-collection" id="p1-properties" />
+            <div className="property-collection" id="p1-properties">
+              <DroppableBind zoneId="p1-properties" />
+              {playerCardMap && playerCardMap[pidMap.p1] && (
+                <div className="properties-sets">
+                  {Object.entries(playerCardMap[pidMap.p1].properties).map(
+                    ([setId, cards]) => (
+                      <div key={setId} id={`p1-set-${setId}`} className="property-set zone p-2">
+                        <DroppableBind zoneId={`p1-set-${setId}`} />
+                        <div className="property-set-header text-xs mb-1">Set {setId}</div>
+                        <div className="property-set-cards flex gap-1 flex-wrap">
+                          {cards.map((src: string, i: number) => (
+                            <img key={`${setId}-${i}`} src={src} className="prop-card" alt="property" draggable={false} />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="money-collection-bank">
@@ -93,7 +117,17 @@ const Playmat2: React.FC<PlaymatProps> = ({
               id="p1-bank"
               ref={setP1BankRef}
               aria-label={`${nameFor(pidMap.p1)} bank`}
-            />
+            >
+              <DroppableBind zoneId="p1-bank" />
+            </div>
+            {/* render bank cards if provided */}
+            {playerCardMap && playerCardMap[pidMap.p1] && (
+              <div className="bank-cards mt-2 flex gap-1 flex-wrap" aria-hidden>
+                {playerCardMap[pidMap.p1].bank.map((src: string, i: number) => (
+                  <img key={`p1-bank-${i}`} src={src} className="bank-card" alt="bank card" draggable={false} />
+                ))}
+              </div>
+            )}
             {myPID === pidMap.p1 && (
               <button
                 className="hand-toggle bg-game-gold hover:bg-yellow-400 
@@ -110,14 +144,31 @@ const Playmat2: React.FC<PlaymatProps> = ({
 
         {/* -------- Player 2 area -------------------------------------- */}
         <div className="player-2-space">
-          <div
-            className={`player-2-property-collection-zone droppable ${
+            <div
+              className={`player-2-property-collection-zone droppable ${
               p2PropsOver ? "is-over" : ""
             }`}
             ref={setP2PropsRef}
             aria-label={`${nameFor(pidMap.p2)} property collection`}
           >
-            <div className="property-collection2" id="p2-properties" />
+            <div className="property-collection2" id="p2-properties">
+              <DroppableBind zoneId="p2-properties" />
+              {playerCardMap && playerCardMap[pidMap.p2] && (
+                <div className="properties-sets">
+                  {Object.entries(playerCardMap[pidMap.p2].properties).map(([setId, cards]) => (
+                    <div key={setId} id={`p2-set-${setId}`} className="property-set zone p-2">
+                      <DroppableBind zoneId={`p2-set-${setId}`} />
+                      <div className="property-set-header text-xs mb-1">Set {setId}</div>
+                      <div className="property-set-cards flex gap-1 flex-wrap">
+                        {cards.map((src: string, i: number) => (
+                          <img key={`${setId}-${i}`} src={src} className="prop-card" alt="property" draggable={false} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="player-2-money-collection-bank">
@@ -126,8 +177,10 @@ const Playmat2: React.FC<PlaymatProps> = ({
               id="p2-bank"
               ref={setP2BankRef}
               aria-label={`${nameFor(pidMap.p2)} bank`}
-            />
-            {myPID === pidMap.p2 && (
+            >
+              <DroppableBind zoneId="p2-bank" />
+            </div>
+              {myPID === pidMap.p2 && (
               <button
                 className="hand-toggle bg-game-gold hover:bg-yellow-400 
                            text-gray-800 font-medium px-3 py-1 rounded-md 
@@ -138,13 +191,20 @@ const Playmat2: React.FC<PlaymatProps> = ({
                 Hand
               </button>
             )}
+              {playerCardMap && playerCardMap[pidMap.p2] && (
+                <div className="bank-cards mt-2 flex gap-1 flex-wrap" aria-hidden>
+                  {playerCardMap[pidMap.p2].bank.map((src: string, i: number) => (
+                    <img key={`p2-bank-${i}`} src={src} className="bank-card" alt="bank card" draggable={false} />
+                  ))}
+                </div>
+              )}
           </div>
         </div>
 
         {/* -------------------- Draw / discard piles ------------------- */}
         <div className="center-pile">
           <div className="draw-pile">
-            <div className="deck" />
+            <img className="deck-top" src={cardBack} alt="draw pile" />
           </div>
 
           <div
@@ -152,12 +212,10 @@ const Playmat2: React.FC<PlaymatProps> = ({
             ref={setDiscardRef}
             aria-label="discard pile"
           >
-            {/* dynamic discard thumbnails; remove placeholders */}
+            {/* dynamic discard thumbnails; newest on top/right */}
             {d1 && <img className="card-1" src={d1} alt="" aria-hidden />}
             {d2 && <img className="card-2" src={d2} alt="" aria-hidden />}
-            {d3 && (
-              <img className="card-3" src={d3} alt="Most recent discard" />
-            )}
+            {d3 && <img className="card-3" src={d3} alt="Most recent discard" />}
           </div>
         </div>
       </div>

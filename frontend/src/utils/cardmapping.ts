@@ -6,14 +6,16 @@
 // ————————————————————————————————————————————————————————————————
 
 /** 1. Glob-import all your card SVGs as URLs */
+// Vite changed import.meta.glob options; use query + import to get URLs
 const modules = import.meta.glob("/src/assets/cards/*.svg", {
   eager: true,
-  as: "url",
+  query: "?url",
+  import: "default",
 });
 const svgByName: Record<string, string> = {};
 for (const path in modules) {
   const file = path.split("/").pop()!;
-  svgByName[file] = modules[path] as string;
+  svgByName[file] = modules[path] as unknown as string;
 }
 
 /** 2. Build the mapping with proper counts & distinct names */

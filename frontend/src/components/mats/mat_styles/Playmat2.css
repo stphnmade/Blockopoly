@@ -1,4 +1,3 @@
-/* Playmat2.css - 2-player game mat specific styles */
 
 .playing-mat-outline-2-players {
   position: fixed;
@@ -18,7 +17,6 @@
   z-index: -1;
 }
 
-/* 🔑 scalable design surface */
 .mat-stage {
   --scale: calc(min(100vw / 1920, 100vh / 1080));
   width: 1920px;
@@ -141,4 +139,21 @@
   width: 8.9375rem;
   height: 4.5rem;
   -webkit-text-stroke: 0.0625rem #000000;
+}
+
+/* thumbnails for rendered bank/property cards */
+.bank-cards img,
+.property-set-cards img,
+.bank-card,
+.prop-card {
+  width: 5rem; /* ~80px */
+  height: 7rem; /* ~112px */
+  object-fit: cover;
+  border: 2px solid rgba(0,0,0,0.12);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.property-set {
+  margin-bottom: 0.5rem;
 }

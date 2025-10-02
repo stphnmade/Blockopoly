@@ -41,6 +41,10 @@ export type PlaymatProps = {
   myPID: string;
   names: Record<string, string>;
   discardImages?: string[];
+  playerCardMap?: Record<
+    string,
+    { bank: string[]; properties: Record<string, string[]> }
+  >;
 };
 const Playmat2 = lazy(
   () => import("../components/mats/Playmat2")
@@ -86,6 +90,7 @@ type StateEnvelope =
   | { type: "STATE"; gameState: ServerGameState }
   | { type: "START_TURN"; playerId: string }
   | { type: "DRAW"; playerId: string; cards: ServerCard[] }
+  | { type: "PATCH"; fromVersion?: number; toVersion?: number; events?: any[] }
   | Record<string, unknown>;
 
 /** Actions */
@@ -273,6 +278,73 @@ const PlayScreen: React.FC = () => {
           handleStateSnapshot((msg as any).gameState);
           return;
         }
+        // Handle server PATCH frames with event array (optimistic updates)
+        if ((msg as any).type === "PATCH" && Array.isArray((msg as any).events)) {
+          const events = (msg as any).events as any[];
+          // apply each event to local game state for immediate UI reflection
+          events.forEach((e) => {
+            if (!e || !e.type) return;
+            if (e.type === "MOVE_PROPERTY") {
+              const payload = e.payload ?? {};
+              const { playerId, cardId, fromSetId, toSetId } = payload;
+              if (!playerId || !cardId) return;
+              setGame((g) => {
+                if (!g) return g;
+                const next = { ...g, playerState: { ...g.playerState } } as ServerGameState;
+                const ps = next.playerState[playerId];
+                if (!ps) return next;
+                // helper to normalize card object
+                const cid = typeof cardId === "string" ? Number(cardId) : cardId;
+                const cardObj: ServerCard = { id: cid, type: "PROPERTY" };
+
+                // remove from source set (handles array or { properties: [] })
+                if (fromSetId && ps.propertyCollection && ps.propertyCollection[fromSetId]) {
+                  const src = ps.propertyCollection[fromSetId] as any;
+                  if (Array.isArray(src)) {
+                    ps.propertyCollection[fromSetId] = src.filter((c: any) => (c?.id ?? c) !== cid);
+                  } else if (src && Array.isArray(src.properties)) {
+                    src.properties = src.properties.filter((c: any) => (c?.id ?? c) !== cid);
+                    ps.propertyCollection[fromSetId] = src;
+                  }
+                }
+
+                // add to target set
+                if (!ps.propertyCollection) ps.propertyCollection = {} as Record<string, ServerCard[]>;
+                const dest = ps.propertyCollection[toSetId];
+                if (Array.isArray(dest)) {
+                  ps.propertyCollection[toSetId] = [...dest, cardObj];
+                } else if (dest && Array.isArray((dest as any).properties)) {
+                  (dest as any).properties = [...(dest as any).properties, cardObj];
+                  ps.propertyCollection[toSetId] = dest as any;
+                } else {
+                  // create new set as simple array form
+                  ps.propertyCollection[toSetId] = [cardObj];
+                }
+
+                return next;
+              });
+            } else if (e.type === "DISCARD") {
+              const payload = e.payload ?? {};
+              const { playerId, cardId } = payload;
+              if (!cardId) return;
+              setGame((g) => {
+                if (!g) return g;
+                const next = { ...g, playerState: { ...g.playerState }, discardPile: [...(g.discardPile ?? [])] } as ServerGameState;
+                const cid = typeof cardId === "string" ? Number(cardId) : cardId;
+                const cardObj: ServerCard = { id: cid, type: "GENERAL_ACTION" };
+                // remove card from player's hand if present
+                if (playerId && next.playerState?.[playerId]) {
+                  const ps = next.playerState[playerId];
+                  ps.hand = (ps.hand ?? []).filter((c) => (c?.id ?? c) !== cid);
+                  next.playerState[playerId] = ps;
+                }
+                next.discardPile = [...(next.discardPile ?? []), cardObj];
+                return next;
+              });
+            }
+          });
+          return;
+        }
         if ((msg as any).type === "START_TURN") {
           const pid = (msg as any).playerId as string;
           setGame((g) => (g ? { ...g, playerAtTurn: pid } : g));
@@ -339,6 +411,27 @@ const PlayScreen: React.FC = () => {
     () => (game?.discardPile ?? []).slice(-3).map(assetForCard),
     [game?.discardPile]
   );
+
+  const playerCardMap = useMemo(() => {
+    const m: Record<string, { bank: string[]; properties: Record<string, string[]> }> = {};
+    if (!game?.playerState) return m;
+    for (const pid of Object.keys(game.playerState)) {
+      const ps = game.playerState[pid];
+      m[pid] = {
+        bank: (ps.bank ?? []).map(assetForCard),
+        properties: Object.fromEntries(
+          Object.entries(ps.propertyCollection ?? {}).map(([setId, val]) => {
+            // backend may send a PropertySet object { properties: [...] } or directly an array
+            const cardArr: ServerCard[] = Array.isArray(val)
+              ? (val as unknown as ServerCard[])
+              : (val && Array.isArray((val as any).properties) ? (val as any).properties : []);
+            return [setId, cardArr.map(assetForCard)];
+          })
+        ),
+      };
+    }
+    return m;
+  }, [game?.playerState]);
 
   /** Click-menu actions */
   const onCardClick = (card: ServerCard) => {
@@ -437,17 +530,7 @@ const PlayScreen: React.FC = () => {
   }, [isMyTurn, wsSend]);
 
   return (
-    <div className="w-[80vw] h-[80vh] overflow-hidden">
-      {/* Tailwind Test - This should show a blue box with Tailwind styling */}
-      <div
-        className="fixed top-4 right-4 z-50 bg-blue-500 text-white p-4 rounded-lg shadow-lg 
-                      transform hover:scale-105 transition-transform duration-200"
-      >
-        <div className="text-sm font-bold">Tailwind Test</div>
-        <div className="text-xs opacity-75">
-          If you see this styled box, Tailwind is working!
-        </div>
-      </div>
+    <div className="mat-stage">
 
       <DndContext
         sensors={sensors}
@@ -460,14 +543,12 @@ const PlayScreen: React.FC = () => {
           myPID={myPID}
           names={nameById}
           discardImages={discardImages}
+          playerCardMap={playerCardMap}
         />
 
         {/* Top bar */}
         <div
-          className="absolute top-2 left-3 z-10 flex gap-4 px-2.5 py-1.5 
-            bg-black/45 rounded-[10px] text-sm text-white 
-            border border-white/10 backdrop-blur-[6px]
-            shadow-lg hover:shadow-xl transition-shadow duration-300"
+          className="play-topbar"
         >
           <div>
             Room Code: <b>{roomCode || "—"}</b>
@@ -507,7 +588,8 @@ const PlayScreen: React.FC = () => {
         </div>
 
         {/* Hand */}
-        <div className={`hand-overlay ${isAnimating ? "animating" : ""}`}>
+        <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
+          <div className="mat-hand-row">
           {myHand.map((card, idx) => {
             const canDrag =
               isMyTurn &&
@@ -522,6 +604,7 @@ const PlayScreen: React.FC = () => {
               />
             );
           })}
+          </div>
         </div>
 
         {/* Drag preview */}

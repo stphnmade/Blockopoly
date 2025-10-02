@@ -1,0 +1,58 @@
+/* src/styles/mat.css */
+:root {
+  --mat-max-w: 1200px;
+  --mat-gap: 16px;
+  --mat-radius-card: 1rem;
+  --mat-radius-panel: 0.75rem;
+  --mat-card-w-sm: 5rem;
+  --mat-card-h-sm: 7rem;
+  --mat-shadow-e1: 0 1px 2px rgba(0,0,0,.25);
+  --mat-shadow-e2: 0 4px 10px rgba(0,0,0,.25);
+  --mat-shadow-e3: 0 12px 24px rgba(0,0,0,.35);
+}
+
+.mat-viewport {
+  max-width: var(--mat-max-w);
+  margin-inline: auto;
+  padding: 16px;
+}
+.mat-layer {
+  position: relative;
+}
+.mat-hand-overlay {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.mat-hand-row {
+  pointer-events: auto;
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--mat-radius-panel);
+  background: rgba(17,19,23,.75);
+  backdrop-filter: blur(4px);
+  box-shadow: var(--mat-shadow-e2);
+}
+
+.zone {
+  border: 1px solid rgba(226,230,236,.18);
+  border-radius: var(--mat-radius-panel);
+  background: rgba(255,255,255,.02);
+}
+
+.center-pile {
+  width: 14rem;
+  height: 8.5rem;
+  position: relative;
+}
+
+.card-sm {
+  width: var(--mat-card-w-sm);
+  height: var(--mat-card-h-sm);
+  border-radius: var(--mat-radius-card);
+  box-shadow: var(--mat-shadow-e1);
+}
