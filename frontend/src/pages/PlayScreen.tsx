@@ -595,7 +595,6 @@ const PlayScreen: React.FC = () => {
                 disabled={!isMyTurn}
                 onClick={() => {
                   // TODO: Implement property movement UI
-                  // For now, just show that the action is available
                   alert(
                     "MoveProperty action is available - UI implementation needed"
                   );
