@@ -21,17 +21,7 @@ import {
 } from "../constants/constants";
 import "../style/PlayScreen.css";
 
-import {
-  DndContext,
-  useSensor,
-  useSensors,
-  PointerSensor,
-  closestCenter,
-  type DragEndEvent,
-  type DragStartEvent,
-  DragOverlay,
-} from "@dnd-kit/core";
-import { useDraggable } from "@dnd-kit/core";
+// Drag-and-drop removed: using click/menu interactions only
 
 import { cardAssetMap } from "../utils/cardmapping";
 const cardBack = new URL("../assets/cards/card-back.svg", import.meta.url).href;
@@ -119,26 +109,19 @@ const toWs = (base: string) =>
 const assetForCard = (c: ServerCard) =>
   !c || c.id === 999 ? cardBack : cardAssetMap[c.id] ?? cardBack;
 
-/** Draggable hand card */
+/** Click-only hand card (drag removed) */
 const DraggableCard: React.FC<{
   card: ServerCard;
-  canDrag: boolean;
+  canDrag: boolean; // kept prop name for compatibility
   onClick: () => void;
 }> = ({ card, canDrag, onClick }) => {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `card-${card.id}`,
-    data: { card },
-    disabled: !canDrag,
-  });
   return (
     <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className={`hand-card ${canDrag ? "draggable" : ""} ${
-        isDragging ? "dragging" : ""
-      }`}
-      onClick={onClick}
+      className={`hand-card ${canDrag ? "clickable" : ""}`}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
       title={`${card.type}${card.actionType ? `: ${card.actionType}` : ""}`}
     >
       <img src={assetForCard(card)} alt={card.type} draggable={false} />
@@ -188,7 +171,7 @@ const PlayScreen: React.FC = () => {
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
   const [spentThisTurn, setSpentThisTurn] = useState(0);
-  const [activeCard, setActiveCard] = useState<ServerCard | null>(null);
+    // activeCard state removed with drag/drop
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -207,11 +190,6 @@ const PlayScreen: React.FC = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify(action));
   }, []);
-
-  /** Sensors */
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
 
   /** Animations */
   const animateToNewHand = useCallback((newHand: ServerCard[]) => {
@@ -266,14 +244,17 @@ const PlayScreen: React.FC = () => {
       return;
     }
     const ws = new WebSocket(wsUrl);
+    console.info("[WS] attempting connect", { wsUrl, roomId, myPID });
     wsRef.current = ws;
 
     ws.onopen = () => {
+      console.info("[WS] connected", { wsUrl });
       setWsReady(true);
       backoffRef.current = 500;
     };
 
     ws.onmessage = (evt) => {
+      console.debug("[WS] raw message", evt.data);
       try {
         const msg: StateEnvelope = JSON.parse(evt.data);
         if ((msg as any).type === "STATE" && (msg as any).gameState) {
@@ -366,7 +347,12 @@ const PlayScreen: React.FC = () => {
       }
     };
 
-    ws.onclose = () => {
+    ws.onerror = (err) => {
+      console.error("[WS] error event", err);
+    };
+
+    ws.onclose = (ev) => {
+      console.warn("[WS] closed", { code: ev?.code, reason: ev?.reason, wasClean: ev?.wasClean });
       setWsReady(false);
       const delay = Math.min(backoffRef.current, 6000);
       backoffRef.current = Math.min(delay * 2, 6000);
@@ -422,8 +408,10 @@ const PlayScreen: React.FC = () => {
       m[pid] = {
         bank: (ps.bank ?? []).map(assetForCard),
         properties: Object.fromEntries(
-          Object.entries(ps.propertyCollection ?? {}).map(([setId, val]) => {
-            // backend may send a PropertySet object { properties: [...] } or directly an array
+          // backend may send PropertyCollection wrapper { collection: { setId: PropertySet } }
+          // or directly a map of setId -> PropertySet/array. Normalize to the inner collection when present.
+          Object.entries((ps.propertyCollection && (ps.propertyCollection.collection ? (ps.propertyCollection as any).collection : ps.propertyCollection)) ?? {}).map(([setId, val]) => {
+            // val may be an array of ServerCard or an object with .properties array
             const cardArr: ServerCard[] = Array.isArray(val)
               ? (val as unknown as ServerCard[])
               : (val && Array.isArray((val as any).properties) ? (val as any).properties : []);
@@ -449,6 +437,7 @@ const PlayScreen: React.FC = () => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
     if (menuCard.type === "MONEY") {
       wsSend({ type: "PlayMoney", id: menuCard.id });
+      console.debug("[Play] increment spentThisTurn (menu bank)", { cardId: menuCard.id, before: spentThisTurn });
       setSpentThisTurn((n) => n + 1);
     }
     setMenuCard(null);
@@ -462,70 +451,17 @@ const PlayScreen: React.FC = () => {
       setMenuCard(null);
       return;
     }
-    wsSend({ type: "PlayProperty", id: menuCard.id, color: chosen });
-    setSpentThisTurn((n) => n + 1);
+  wsSend({ type: "PlayProperty", id: menuCard.id, color: chosen });
+  console.debug("[Play] increment spentThisTurn (menu property)", { cardId: menuCard.id, color: chosen, before: spentThisTurn });
+  setSpentThisTurn((n) => n + 1);
     setMenuCard(null);
     setColorChoices(null);
   };
 
   /** DnD drop handling */
-  const parseDropId = (id: string): { zone: string; pid?: string } => {
-    const parts = id.split(":");
-    if (parts[0] === "discard") return { zone: "discard" };
-    if (
-      (parts[0] === "bank" || parts[0] === "collect") &&
-      parts[1] === "pid" &&
-      parts[2]
-    ) {
-      return { zone: parts[0], pid: parts[2] };
-    }
-    return { zone: id };
-  };
+  // parseDropId removed with drag/drop
 
-  const onDragStart = useCallback((event: DragStartEvent) => {
-    const card = event.active?.data?.current?.card as ServerCard | undefined;
-    setActiveCard(card ?? null);
-  }, []);
-
-  const onDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      setActiveCard(null);
-
-      const { active, over } = event;
-      const card = active?.data?.current?.card as ServerCard | undefined;
-      if (!card || !over) return;
-      if (!isMyTurn || playsLeft <= 0) return;
-
-      const { zone, pid } = parseDropId(String(over.id));
-      if ((zone === "bank" || zone === "collect") && pid !== myPID) return;
-
-      switch (zone) {
-        case "bank":
-          if (card.type === "MONEY") {
-            wsSend({ type: "PlayMoney", id: card.id });
-            setSpentThisTurn((n) => n + 1);
-          }
-          break;
-        case "collect":
-          if (card.type === "PROPERTY") {
-            const colors = card.colors ?? [];
-            if (colors.length > 1) {
-              setMenuCard(card);
-              setColorChoices(colors);
-            } else if (colors[0]) {
-              wsSend({ type: "PlayProperty", id: card.id, color: colors[0] });
-              setSpentThisTurn((n) => n + 1);
-            }
-          }
-          break;
-        case "discard":
-          // Allow discarding any card from hand during cleanup phase
-          wsSend({ type: "Discard", cardId: card.id });
-          break;
-      }
-    },
-    [isMyTurn, playsLeft, myPID, wsSend]
-  );
+  // Drag & drop removed: use click/menu interactions only
 
   const sendEndTurn = useCallback(() => {
     if (isMyTurn) wsSend({ type: "EndTurn" });
@@ -534,12 +470,6 @@ const PlayScreen: React.FC = () => {
   return (
     <div className="mat-stage">
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      >
         <Mat
           layout={layout}
           myPID={myPID}
@@ -610,19 +540,7 @@ const PlayScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Drag preview */}
-        <DragOverlay>
-          {activeCard ? (
-            <div className="hand-card dragging">
-              <img
-                src={assetForCard(activeCard)}
-                alt={activeCard.type}
-                draggable={false}
-              />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      
 
       {/* Portal-mounted End Turn button (centers on viewport) */}
       {typeof document !== "undefined"

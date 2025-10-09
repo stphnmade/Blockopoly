@@ -92,17 +92,36 @@ const Playmat2: React.FC<PlaymatProps> = ({
               {playerCardMap && playerCardMap[pidMap.p1] && (
                 <div className="properties-sets">
                   {Object.entries(playerCardMap[pidMap.p1].properties).map(
-                    ([setId, cards]) => (
-                      <div key={setId} id={`p1-set-${setId}`} className="property-set zone p-2">
-                        <DroppableBind zoneId={`p1-set-${setId}`} />
-                        <div className="property-set-header text-xs mb-1">Set {setId}</div>
-                        <div className="property-set-cards flex gap-1 flex-wrap">
-                          {cards.map((src: string, i: number) => (
-                            <img key={`${setId}-${i}`} src={src} className="prop-card" alt="property" draggable={false} />
-                          ))}
+                    ([setId, cards]) => {
+                      // split into vertical columns of up to 2 cards each (2 rows tall)
+                      const cols: string[][] = [];
+                      for (let i = 0; i < cards.length; i += 2) cols.push(cards.slice(i, i + 2));
+                      return (
+                        <div key={setId} id={`p1-set-${setId}`} className="property-set zone p-2">
+                          <DroppableBind zoneId={`p1-set-${setId}`} />
+                          <div className="property-set-cards">
+                            {cols.map((col, ci) => (
+                              <div className="property-col" key={`col-${ci}`}>
+                                {col.map((src: string, ri: number) => (
+                                  <img
+                                    key={`${setId}-${ci}-${ri}`}
+                                    src={src}
+                                    className={`prop-card ${ri === 1 ? "prop-card-bottom" : ""}`}
+                                    alt="property"
+                                    draggable={false}
+                                  />
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                          {cards.length > 1 && (
+                            <div className="set-count-badge" aria-hidden>
+                              {cards.length}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )
+                      );
+                    }
                   )}
                 </div>
               )}
@@ -143,17 +162,37 @@ const Playmat2: React.FC<PlaymatProps> = ({
               <DroppableBind zoneId="p2-properties" />
               {playerCardMap && playerCardMap[pidMap.p2] && (
                 <div className="properties-sets">
-                  {Object.entries(playerCardMap[pidMap.p2].properties).map(([setId, cards]) => (
-                    <div key={setId} id={`p2-set-${setId}`} className="property-set zone p-2">
-                      <DroppableBind zoneId={`p2-set-${setId}`} />
-                      <div className="property-set-header text-xs mb-1">Set {setId}</div>
-                      <div className="property-set-cards flex gap-1 flex-wrap">
-                        {cards.map((src: string, i: number) => (
-                          <img key={`${setId}-${i}`} src={src} className="prop-card" alt="property" draggable={false} />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                  {Object.entries(playerCardMap[pidMap.p2].properties).map(
+                    ([setId, cards]) => {
+                      const cols: string[][] = [];
+                      for (let i = 0; i < cards.length; i += 2) cols.push(cards.slice(i, i + 2));
+                      return (
+                        <div key={setId} id={`p2-set-${setId}`} className="property-set zone p-2">
+                          <DroppableBind zoneId={`p2-set-${setId}`} />
+                          <div className="property-set-cards">
+                            {cols.map((col, ci) => (
+                              <div className="property-col" key={`col-${ci}`}>
+                                {col.map((src: string, ri: number) => (
+                                  <img
+                                    key={`${setId}-${ci}-${ri}`}
+                                    src={src}
+                                    className={`prop-card ${ri === 1 ? "prop-card-bottom" : ""}`}
+                                    alt="property"
+                                    draggable={false}
+                                  />
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                          {cards.length > 1 && (
+                            <div className="set-count-badge" aria-hidden>
+                              {cards.length}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                  )}
                 </div>
               )}
             </div>

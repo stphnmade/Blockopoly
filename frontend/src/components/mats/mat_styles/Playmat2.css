@@ -143,17 +143,80 @@
 
 /* thumbnails for rendered bank/property cards */
 .bank-cards img,
-.property-set-cards img,
-.bank-card,
-.prop-card {
-  width: 5rem; /* ~80px */
-  height: 7rem; /* ~112px */
+.bank-card {
+  width: 5rem;
+  height: 7rem;
   object-fit: cover;
   border: 2px solid rgba(0,0,0,0.12);
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
+/* Property set layout: columns that are 2 cards tall (2 rows). Each column stacks cards slightly to show multiple cards in a set. */
 .property-set {
   margin-bottom: 0.5rem;
+  position: relative;
+  overflow: hidden; /* contain cards inside the set box */
+}
+
+.property-set-cards {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.25rem;
+  /* allow columns to wrap if too many */
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.property-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 5.25rem; /* column width equals card width */
+  align-items: center;
+}
+
+.prop-card {
+  width: 5.25rem; /* slightly larger for readability */
+  height: 7.5rem;
+  object-fit: cover;
+  border: 2px solid rgba(0,0,0,0.12);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  transform-origin: top left;
+  transition: transform 120ms ease, left 120ms ease, top 120ms ease;
+  position: relative;
+  z-index: 1;
+}
+
+/* offset the bottom card slightly to indicate stacking */
+.prop-card-bottom {
+  margin-top: -1.15rem; /* negative to overlap under the top card */
+  z-index: 0;
+  transform: scale(0.98);
+}
+
+/* small badge that shows the number of cards in the set */
+.set-count-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  padding: 0 0.25rem;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1.6rem;
+  text-align: center;
+  border-radius: 0.4rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  z-index: 30;
+}
+
+/* ensure the property collection region clips overflow so cards never escape */
+.property-collection,
+.property-collection2 {
+  overflow: hidden;
 }
