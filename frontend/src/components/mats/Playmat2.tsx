@@ -9,10 +9,10 @@ import { useDroppable } from "@dnd-kit/core";
 /* ------- images ------- */
 import backdrop from "@/assets/Backdrop.svg";
 
-const cardBack = new URL("../../assets/cards/card-back.svg", import.meta.url).href;
-
 import "@/components/mats/mat_styles/playmat_shared.css";
 import "./mat_styles/Playmat2.css";
+import PropertySetGrid from "../properties/PropertySetGrid";
+import { buildPlayerPropertyGridVM } from "../../lib/adapters/buildPlayerPropertyGridVM";
 
 // import { PLAYER_ID_KEY } from "../../constants/constants";
 
@@ -90,40 +90,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
             <div className="property-collection" id="p1-properties">
               <DroppableBind zoneId="p1-properties" />
               {playerCardMap && playerCardMap[pidMap.p1] && (
-                <div className="properties-sets">
-                  {Object.entries(playerCardMap[pidMap.p1].properties).map(
-                    ([setId, cards]) => {
-                      // split into vertical columns of up to 2 cards each (2 rows tall)
-                      const cols: string[][] = [];
-                      for (let i = 0; i < cards.length; i += 2) cols.push(cards.slice(i, i + 2));
-                      return (
-                        <div key={setId} id={`p1-set-${setId}`} className="property-set zone p-2">
-                          <DroppableBind zoneId={`p1-set-${setId}`} />
-                          <div className="property-set-cards">
-                            {cols.map((col, ci) => (
-                              <div className="property-col" key={`col-${ci}`}>
-                                {col.map((src: string, ri: number) => (
-                                  <img
-                                    key={`${setId}-${ci}-${ri}`}
-                                    src={src}
-                                    className={`prop-card ${ri === 1 ? "prop-card-bottom" : ""}`}
-                                    alt="property"
-                                    draggable={false}
-                                  />
-                                ))}
-                              </div>
-                            ))}
-                          </div>
-                          {cards.length > 1 && (
-                            <div className="set-count-badge" aria-hidden>
-                              {cards.length}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
+                <PropertySetGrid sets={buildPlayerPropertyGridVM(playerCardMap[pidMap.p1].properties).sets} enableDnD={true} onOpenSet={() => {}} />
               )}
             </div>
           </div>
@@ -161,39 +128,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
             <div className="property-collection2" id="p2-properties">
               <DroppableBind zoneId="p2-properties" />
               {playerCardMap && playerCardMap[pidMap.p2] && (
-                <div className="properties-sets">
-                  {Object.entries(playerCardMap[pidMap.p2].properties).map(
-                    ([setId, cards]) => {
-                      const cols: string[][] = [];
-                      for (let i = 0; i < cards.length; i += 2) cols.push(cards.slice(i, i + 2));
-                      return (
-                        <div key={setId} id={`p2-set-${setId}`} className="property-set zone p-2">
-                          <DroppableBind zoneId={`p2-set-${setId}`} />
-                          <div className="property-set-cards">
-                            {cols.map((col, ci) => (
-                              <div className="property-col" key={`col-${ci}`}>
-                                {col.map((src: string, ri: number) => (
-                                  <img
-                                    key={`${setId}-${ci}-${ri}`}
-                                    src={src}
-                                    className={`prop-card ${ri === 1 ? "prop-card-bottom" : ""}`}
-                                    alt="property"
-                                    draggable={false}
-                                  />
-                                ))}
-                              </div>
-                            ))}
-                          </div>
-                          {cards.length > 1 && (
-                            <div className="set-count-badge" aria-hidden>
-                              {cards.length}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
+                <PropertySetGrid sets={buildPlayerPropertyGridVM(playerCardMap[pidMap.p2].properties).sets} enableDnD={false} onOpenSet={() => {}} orientation="opponent" />
               )}
             </div>
           </div>
@@ -220,10 +155,6 @@ const Playmat2: React.FC<PlaymatProps> = ({
 
         {/* -------------------- Draw / discard piles ------------------- */}
         <div className="center-pile">
-          <div className="draw-pile">
-            <img className="deck-top" src={cardBack} alt="draw pile" />
-          </div>
-
           <div
             className={`discard-pile droppable ${discardOver ? "is-over" : ""}`}
             ref={setDiscardRef}

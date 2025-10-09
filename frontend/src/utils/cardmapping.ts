@@ -7,7 +7,7 @@
 
 /** 1. Glob-import all your card SVGs as URLs */
 // Vite changed import.meta.glob options; use query + import to get URLs
-const modules = import.meta.glob("/src/assets/cards/*.svg", {
+const modules = import.meta.glob("../assets/cards/*.svg", {
   eager: true,
   query: "?url",
   import: "default",
