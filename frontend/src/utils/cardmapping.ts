@@ -176,6 +176,8 @@ export const cardAssetMap: Record<number, string> = (() => {
   id++;
   m[id] = svgByName["wproperty-magenta-orange.svg"];
   id++;
+  m[id] = svgByName["wproperty-magenta-orange.svg"];
+  id++;
   m[id] = svgByName["wproperty-green-black.svg"];
   id++;
   m[id] = svgByName["wproperty-light-blue-black.svg"];
