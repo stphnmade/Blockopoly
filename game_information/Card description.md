@@ -79,27 +79,27 @@ Card description:
 
 ## Property distribution table
 
-| Property Set                  | Cards Available | Cards Needed to Complete | Notes              |
-|---------------------------    |-----------------|--------------------------|-------             |
-| Railroad (Black)              | 4               | 4                        | —                  |
-| Green                         | 3               | 3                        | —                  |
-| Yellow                        | 3               | 3                        | —                  |
-| Red                           | 3               | 3                        | —                  |
-| Orange                        | 3               | 3                        | —                  |
-| Magenta                       | 3               | 3                        | —                  |
-| Turquoise                     | 3               | 3                        | —                  |
-| Dark Blue                     | 2               | 2                        | —                  |
-| Brown                         | 2               | 2                        | —                  |
-| Utility (Light Green)         | 2               | 2                        | —                  |
-| —                             | —               | —                        | —                  |
-| Magenta & Orange Wildcard     | 2               | —                        | Two-color wildcard |
-| Turquoise & Brown Wildcard    | 1               | —                        | Two-color wildcard |
-| Turquoise & Railroad Wildcard | 1               | —                        | Two-color wildcard |
-| Dark Blue & Green Wildcard    | 1               | —                        | Two-color wildcard |
-| Railroad & Green Wildcard     | 1               | —                        | Two-color wildcard |
-| Red & Yellow Wildcard         | 2               | —                        | Two-color wildcard |
-| Utility & Railroad Wildcard   | 1               | —                        | Two-color wildcard |
-| Ten-Color Wildcard            | 2               | —                        | used as **any color**|
+| Property Set                  | Cards Available | Cards Needed to Complete | Notes                 |
+|---------------------------    |-----------------|--------------------------|-------                |
+| Railroad (Black)              | 4               | 4                        | —                     |
+| Green                         | 3               | 3                        | —                     |
+| Yellow                        | 3               | 3                        | —                     |
+| Red                           | 3               | 3                        | —                     |
+| Orange                        | 3               | 3                        | —                     |
+| Magenta                       | 3               | 3                        | —                     |
+| Turquoise                     | 3               | 3                        | —                     |
+| Dark Blue                     | 2               | 2                        | —                     |
+| Brown                         | 2               | 2                        | —                     |
+| Utility (Light Green)         | 2               | 2                        | —                     |
+| —                             | —               | —                        | —                     |
+| Magenta & Orange Wildcard     | 2               | —                        | Two-color wildcard    |
+| Turquoise & Brown Wildcard    | 1               | —                        | Two-color wildcard    |
+| Turquoise & Railroad Wildcard | 1               | —                        | Two-color wildcard    |
+| Dark Blue & Green Wildcard    | 1               | —                        | Two-color wildcard    |
+| Railroad & Green Wildcard     | 1               | —                        | Two-color wildcard    |
+| Red & Yellow Wildcard         | 2               | —                        | Two-color wildcard    |
+| Utility & Railroad Wildcard   | 1               | —                        | Two-color wildcard    |
+| Ten-Color Wildcard            | 2               | —                        | used as **any color** |
 
 ---
 

@@ -81,6 +81,7 @@ type StateEnvelope =
   | { type: "STATE"; gameState: ServerGameState }
   | { type: "START_TURN"; playerId: string }
   | { type: "DRAW"; playerId: string; cards: ServerCard[] }
+  | { type: "PLAY_UNSTOPPABLE_ACTION"; playerId: string; card: ServerCard }
   | { type: "PATCH"; fromVersion?: number; toVersion?: number; events?: any[] }
   | Record<string, unknown>;
 
@@ -91,6 +92,7 @@ type Action =
   | { type: "PlayMoney"; id: number }
   | { type: "PlayProperty"; id: number; color: Color }
   | { type: "Discard"; cardId: number }
+  | { type: "PassGo"; id: number }
   | {
       type: "MoveProperty";
       cardId: number;
@@ -108,6 +110,7 @@ const toWs = (base: string) =>
     .replace(/\/+$/, "");
 const assetForCard = (c: ServerCard) =>
   !c || c.id === 999 ? cardBack : cardAssetMap[c.id] ?? cardBack;
+const MAX_HAND_SIZE = 7;
 
 /** Click-only hand card (drag removed) */
 const DraggableCard: React.FC<{
@@ -171,6 +174,8 @@ const PlayScreen: React.FC = () => {
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
   const [spentThisTurn, setSpentThisTurn] = useState(0);
+  const [isDiscarding, setIsDiscarding] = useState(false);
+  const [discardSelection, setDiscardSelection] = useState<number[]>([]);
     // activeCard state removed with drag/drop
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -259,6 +264,27 @@ const PlayScreen: React.FC = () => {
         const msg: StateEnvelope = JSON.parse(evt.data);
         if ((msg as any).type === "STATE" && (msg as any).gameState) {
           handleStateSnapshot((msg as any).gameState);
+          return;
+        }
+        if ((msg as any).type === "PLAY_UNSTOPPABLE_ACTION") {
+          const payload = msg as any;
+          const playerId = payload.playerId as string | undefined;
+          const card = payload.card as ServerCard | undefined;
+          if (!card?.id) return;
+          if (playerId === myPID) {
+            setMyHand((prev) => prev.filter((c) => c.id !== card.id));
+          }
+          setGame((g) => {
+            if (!g) return g;
+            const next = { ...g, playerState: { ...g.playerState }, discardPile: [...(g.discardPile ?? [])] } as ServerGameState;
+            next.discardPile = [...next.discardPile, card];
+            if (playerId === myPID && next.playerState[playerId]) {
+              const ps = next.playerState[playerId];
+              ps.hand = (ps.hand ?? []).filter((c) => c.id !== card.id);
+              next.playerState[playerId] = ps;
+            }
+            return next;
+          });
           return;
         }
         // Handle server PATCH frames with event array (optimistic updates)
@@ -373,6 +399,8 @@ const PlayScreen: React.FC = () => {
   /** Derived */
   const isMyTurn = game?.playerAtTurn === myPID;
   const playsLeft = Math.max(0, (game?.cardsLeftToPlay ?? 0) - spentThisTurn);
+  const discardNeeded = Math.max(0, myHand.length - MAX_HAND_SIZE);
+  const canConfirmDiscard = discardNeeded > 0 && discardSelection.length === discardNeeded;
 
   const orderedPids = (
     game?.playerOrder?.length ? game.playerOrder : lobbyPlayers.map((p) => p.id)
@@ -426,6 +454,7 @@ const PlayScreen: React.FC = () => {
   /** Click-menu actions */
   const onCardClick = (card: ServerCard) => {
     if (!isMyTurn) return;
+    if (isDiscarding) return;
     setMenuCard(card);
     if (card.type === "PROPERTY") {
       const colors = card.colors ?? [];
@@ -440,6 +469,16 @@ const PlayScreen: React.FC = () => {
       console.debug("[Play] increment spentThisTurn (menu bank)", { cardId: menuCard.id, before: spentThisTurn });
       setSpentThisTurn((n) => n + 1);
     }
+    setMenuCard(null);
+    setColorChoices(null);
+  };
+
+  const passGoSelected = () => {
+    if (!menuCard || !isMyTurn || playsLeft <= 0) return;
+    if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "PASS_GO") return;
+    wsSend({ type: "PassGo", id: menuCard.id });
+    console.debug("[Play] increment spentThisTurn (pass go)", { cardId: menuCard.id, before: spentThisTurn });
+    setSpentThisTurn((n) => n + 1);
     setMenuCard(null);
     setColorChoices(null);
   };
@@ -464,8 +503,79 @@ const PlayScreen: React.FC = () => {
   // Drag & drop removed: use click/menu interactions only
 
   const sendEndTurn = useCallback(() => {
-    if (isMyTurn) wsSend({ type: "EndTurn" });
-  }, [isMyTurn, wsSend]);
+    if (!isMyTurn) return;
+    if (myHand.length > MAX_HAND_SIZE) {
+      setIsDiscarding(true);
+      setMenuCard(null);
+      setColorChoices(null);
+      return;
+    }
+    wsSend({ type: "EndTurn" });
+  }, [isMyTurn, myHand.length, wsSend]);
+
+  const toggleDiscardSelection = useCallback(
+    (cardId: number) => {
+      setDiscardSelection((prev) => {
+        if (prev.includes(cardId)) {
+          return prev.filter((id) => id !== cardId);
+        }
+        if (prev.length >= discardNeeded) return prev;
+        return [...prev, cardId];
+      });
+    },
+    [discardNeeded]
+  );
+
+  const autoSelectDiscards = useCallback(() => {
+    if (discardNeeded <= 0) return;
+    setDiscardSelection((prev) => {
+      const selected = new Set(prev);
+      const next = [...prev];
+      for (const card of myHand) {
+        if (next.length >= discardNeeded) break;
+        if (!selected.has(card.id)) {
+          next.push(card.id);
+          selected.add(card.id);
+        }
+      }
+      return next.slice(0, discardNeeded);
+    });
+  }, [discardNeeded, myHand]);
+
+  const confirmDiscardAndEndTurn = useCallback(() => {
+    if (!isMyTurn || discardNeeded <= 0) return;
+    if (discardSelection.length !== discardNeeded) return;
+    discardSelection.forEach((cardId) => wsSend({ type: "Discard", cardId }));
+    setDiscardSelection([]);
+    setIsDiscarding(false);
+    wsSend({ type: "EndTurn" });
+  }, [discardNeeded, discardSelection, isMyTurn, wsSend]);
+
+  const cancelDiscard = useCallback(() => {
+    setDiscardSelection([]);
+    setIsDiscarding(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isMyTurn && isDiscarding) {
+      setIsDiscarding(false);
+      setDiscardSelection([]);
+    }
+  }, [isMyTurn, isDiscarding]);
+
+  useEffect(() => {
+    if (!isDiscarding) return;
+    if (discardNeeded <= 0) {
+      setIsDiscarding(false);
+      setDiscardSelection([]);
+      return;
+    }
+    setDiscardSelection((prev) => {
+      const inHand = prev.filter((id) => myHand.some((c) => c.id === id));
+      if (inHand.length <= discardNeeded) return inHand;
+      return inHand.slice(0, discardNeeded);
+    });
+  }, [discardNeeded, isDiscarding, myHand]);
 
   return (
     <div className="mat-stage">
@@ -524,10 +634,11 @@ const PlayScreen: React.FC = () => {
               <div className="text-sm font-medium">{myName || "Your hand"}</div>
             </div>
             {handExpanded && myHand.map((card, idx) => {
+            const isPassGo = card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
             const canDrag =
               isMyTurn &&
               playsLeft > 0 &&
-              (card.type === "MONEY" || card.type === "PROPERTY");
+              (card.type === "MONEY" || card.type === "PROPERTY" || isPassGo);
             return (
               <DraggableCard
                 key={`${card.id}-${idx}`}
@@ -548,13 +659,69 @@ const PlayScreen: React.FC = () => {
             <button
               className="end-turn-button"
               onClick={sendEndTurn}
-              disabled={!isMyTurn}
+              disabled={!isMyTurn || isDiscarding}
             >
               End Turn
             </button>,
             document.body
           )
         : null}
+
+      {isDiscarding && (
+        <div className="discard-overlay" role="dialog" aria-modal="true" aria-labelledby="discard-title">
+          <div className="discard-modal">
+            <div className="discard-header">
+              <div className="discard-title" id="discard-title">
+                Discard to {MAX_HAND_SIZE}
+              </div>
+              <div className="discard-subtitle">
+                Select {discardNeeded} card{discardNeeded === 1 ? "" : "s"} to discard.
+              </div>
+            </div>
+            <div className="discard-grid">
+              {myHand.map((card, idx) => {
+                const selected = discardSelection.includes(card.id);
+                const selectionFull = discardSelection.length >= discardNeeded;
+                const disabled = !selected && selectionFull;
+                return (
+                  <button
+                    key={`discard-${card.id}-${idx}`}
+                    type="button"
+                    className={`discard-card ${selected ? "selected" : ""}`}
+                    onClick={() => toggleDiscardSelection(card.id)}
+                    disabled={disabled}
+                    aria-pressed={selected}
+                    title={`${card.type}${card.actionType ? `: ${card.actionType}` : ""}`}
+                  >
+                    <img src={assetForCard(card)} alt={card.type} draggable={false} />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="discard-actions">
+              <button
+                type="button"
+                className="discard-secondary"
+                onClick={autoSelectDiscards}
+                disabled={discardNeeded <= 0}
+              >
+                Auto-select {discardNeeded}
+              </button>
+              <button
+                type="button"
+                className="discard-primary"
+                onClick={confirmDiscardAndEndTurn}
+                disabled={!canConfirmDiscard}
+              >
+                Discard & End Turn
+              </button>
+              <button type="button" className="discard-secondary" onClick={cancelDiscard}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Inline property color picker / bank action */}
       {menuCard && (
@@ -587,6 +754,18 @@ const PlayScreen: React.FC = () => {
                 Play as Property
               </button>
             )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "PASS_GO" && (
+                <button
+                  className="bg-amber-600 hover:bg-amber-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0}
+                  onClick={passGoSelected}
+                >
+                  Draw 2 (Pass Go)
+                </button>
+              )}
           </div>
           {menuCard.type === "PROPERTY" && colorChoices && (
             <div className="card-menu-row">
