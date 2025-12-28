@@ -241,6 +241,15 @@ const PlayScreen: React.FC = () => {
     ws.send(JSON.stringify(action));
   }, []);
 
+  const getPendingInteractions = useCallback((pending: unknown) => {
+    if (!pending) return [] as any[];
+    if (Array.isArray(pending)) return pending;
+    const typed = pending as { pendingInteractions?: unknown; _pendingInteractions?: unknown };
+    if (Array.isArray(typed.pendingInteractions)) return typed.pendingInteractions;
+    if (Array.isArray(typed._pendingInteractions)) return typed._pendingInteractions;
+    return [] as any[];
+  }, []);
+
   /** Animations */
   const animateToNewHand = useCallback((newHand: ServerCard[]) => {
     setIsAnimating(true);
@@ -551,7 +560,10 @@ const PlayScreen: React.FC = () => {
   }, [game?.playerState, myPID]);
 
   const myBankCards = useMemo(
-    () => game?.playerState?.[myPID]?.bank ?? [],
+    () =>
+      (game?.playerState?.[myPID]?.bank ?? []).filter(
+        (card) => card.type === "MONEY"
+      ),
     [game?.playerState, myPID]
   );
 
@@ -648,10 +660,7 @@ const PlayScreen: React.FC = () => {
   const rentSelectedTotal = rentBankSelectedTotal + rentPropertySelectedTotal;
   const rentRemaining = Math.max(0, rentAmountDue - rentSelectedTotal);
 
-  const rentBankForced = !!rentCharge && rentBankTotal < rentAmountDue;
-  const rentPropertyForced = !!rentCharge && rentTotalValue <= rentAmountDue;
-  const rentPropertyAllowed =
-    !!rentCharge && rentBankTotal < rentAmountDue && !rentPropertyForced;
+  const rentMustPayAll = !!rentCharge && rentTotalValue <= rentAmountDue;
 
   const rentBankIds = useMemo(() => myBankCards.map((card) => card.id), [myBankCards]);
   const rentPropertyIds = useMemo(
@@ -667,11 +676,11 @@ const PlayScreen: React.FC = () => {
 
   const canPayRent =
     !!rentCharge &&
-    (rentTotalValue <= rentAmountDue
-      ? rentBankSelectionComplete && rentPropertySelectionComplete
-      : rentBankTotal >= rentAmountDue
-        ? rentPropertySelection.length === 0 && rentSelectedTotal >= rentAmountDue
-        : rentBankSelectionComplete && rentSelectedTotal >= rentAmountDue);
+    (rentAmountDue <= 0
+      ? rentSelectedTotal === 0
+      : rentMustPayAll
+        ? rentBankSelectionComplete && rentPropertySelectionComplete
+        : rentSelectedTotal >= rentAmountDue);
 
   const jsnCards = useMemo(
     () =>
@@ -823,22 +832,22 @@ const PlayScreen: React.FC = () => {
 
   const toggleRentBankCard = useCallback(
     (cardId: number) => {
-      if (!rentCharge || rentBankForced) return;
+      if (!rentCharge || rentMustPayAll) return;
       setRentBankSelection((prev) =>
         prev.includes(cardId) ? prev.filter((id) => id !== cardId) : [...prev, cardId]
       );
     },
-    [rentBankForced, rentCharge]
+    [rentCharge, rentMustPayAll]
   );
 
   const toggleRentPropertyCard = useCallback(
     (cardId: number) => {
-      if (!rentCharge || !rentPropertyAllowed) return;
+      if (!rentCharge || rentMustPayAll) return;
       setRentPropertySelection((prev) =>
         prev.includes(cardId) ? prev.filter((id) => id !== cardId) : [...prev, cardId]
       );
     },
-    [rentCharge, rentPropertyAllowed]
+    [rentCharge, rentMustPayAll]
   );
 
   const submitRentPayment = useCallback(() => {
@@ -988,8 +997,8 @@ const PlayScreen: React.FC = () => {
   }, [isRenting, rentChargeAll, rentTarget, rentTargets]);
 
   useEffect(() => {
-    const pending = (game?.pendingInteractions as any)?.pendingInteractions;
-    if (!Array.isArray(pending)) {
+    const pending = getPendingInteractions(game?.pendingInteractions);
+    if (pending.length === 0) {
       setRentCharge(null);
       return;
     }
@@ -1019,7 +1028,7 @@ const PlayScreen: React.FC = () => {
         ? prev
         : next
     );
-  }, [game?.pendingInteractions, myPID]);
+  }, [game?.pendingInteractions, getPendingInteractions, myPID]);
 
   useEffect(() => {
     if (!rentCharge) {
@@ -1027,20 +1036,15 @@ const PlayScreen: React.FC = () => {
       setRentPropertySelection([]);
       return;
     }
-    if (rentBankTotal < rentAmountDue) {
+    if (rentMustPayAll) {
       setRentBankSelection(rentBankIds);
-    } else {
-      setRentBankSelection((prev) => prev.filter((id) => rentBankIds.includes(id)));
-    }
-    if (rentTotalValue <= rentAmountDue) {
       setRentPropertySelection(rentPropertyIds);
-    } else if (rentBankTotal >= rentAmountDue) {
-      setRentPropertySelection([]);
-    } else {
-      setRentPropertySelection((prev) =>
-        prev.filter((id) => rentPropertyIds.includes(id))
-      );
+      return;
     }
+    setRentBankSelection((prev) => prev.filter((id) => rentBankIds.includes(id)));
+    setRentPropertySelection((prev) =>
+      prev.filter((id) => rentPropertyIds.includes(id))
+    );
   }, [
     rentAmountDue,
     rentBankIds,
@@ -1048,6 +1052,7 @@ const PlayScreen: React.FC = () => {
     rentCharge,
     rentPropertyIds,
     rentTotalValue,
+    rentMustPayAll,
   ]);
 
   useEffect(() => {
@@ -1433,7 +1438,7 @@ const PlayScreen: React.FC = () => {
                           type="button"
                           className={`charge-card ${selected ? "selected" : ""}`}
                           onClick={() => toggleRentBankCard(card.id)}
-                          disabled={Boolean(rentBankForced)}
+                          disabled={rentMustPayAll}
                           aria-pressed={selected}
                         >
                           <img src={assetForCard(card)} alt="Bank card" draggable={false} />
@@ -1460,7 +1465,7 @@ const PlayScreen: React.FC = () => {
                           type="button"
                           className={`charge-card ${selected ? "selected" : ""}`}
                           onClick={() => toggleRentPropertyCard(card.id)}
-                          disabled={!rentPropertyAllowed}
+                          disabled={rentMustPayAll}
                           aria-pressed={selected}
                         >
                           <img src={assetForCard(card)} alt="Property card" draggable={false} />
@@ -1476,14 +1481,9 @@ const PlayScreen: React.FC = () => {
               <div>Selected: {rentSelectedTotal}M</div>
               <div>Remaining: {rentRemaining}M</div>
             </div>
-            {rentBankForced && (
+            {rentMustPayAll && (
               <div className="charge-note">
-                Bank money applies first and is selected automatically.
-              </div>
-            )}
-            {rentPropertyForced && (
-              <div className="charge-note">
-                All cards are required to cover this rent.
+                All of your cards are required to cover this rent.
               </div>
             )}
             <div className="charge-actions">

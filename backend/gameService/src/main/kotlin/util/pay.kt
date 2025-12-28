@@ -74,7 +74,6 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
 
     val bankMoney = playerState.bank.filterIsInstance<Card.Money>()
     val bankMoneyById = bankMoney.associateBy { it.id }
-    val bankMoneyIds = bankMoneyById.keys
     val bankTotal = bankMoney.sumOf { it.value }
 
     val propertyCards = playerState.propertyCollection.collection.values.flatMap { it.properties }
@@ -104,19 +103,13 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
 
     val paymentMoneyTotal = paymentMoney.sumOf { it.value }
     val paymentPropertyTotal = paymentProperties.sumOf { it.value ?: 0 }
-    val paymentMoneyIds = paymentMoney.map { it.id }.toSet()
+    val paymentTotal = paymentMoneyTotal + paymentPropertyTotal
 
-    if (bankTotal >= amountRequested) {
-        if (paymentProperties.isNotEmpty()) return PayResponse()
-        if (paymentMoneyTotal < amountRequested) return PayResponse()
+    if (totalValue <= amountRequested) {
+        if (paymentMoney.size != bankMoney.size) return PayResponse()
+        if (paymentProperties.size != propertyCards.size) return PayResponse()
     } else {
-        if (bankMoneyIds != paymentMoneyIds) return PayResponse()
-        if (totalValue <= amountRequested) {
-            if (paymentProperties.size != propertyCards.size) return PayResponse()
-        } else {
-            val remainingDue = amountRequested - bankTotal
-            if (paymentPropertyTotal < remainingDue) return PayResponse()
-        }
+        if (paymentTotal < amountRequested) return PayResponse()
     }
 
     val propertyToDestinations = mutableMapOf<Int, String>()
