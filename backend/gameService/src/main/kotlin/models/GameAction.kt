@@ -82,4 +82,10 @@ data class Discard(val cardId: Int) : GameAction
 
 @Serializable
 @SerialName("MoveProperty")
-data class MoveProperty(val cardId: Int, val fromSetId: String?, val toSetId: String, val position: Int? = null) : GameAction
+data class MoveProperty(
+    val cardId: Int,
+    val fromSetId: String?,
+    val toSetId: String,
+    val position: Int? = null,
+    val toColor: Color? = null
+) : GameAction

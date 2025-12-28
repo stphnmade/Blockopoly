@@ -77,6 +77,13 @@ type ServerGameState = {
   discardPile: ServerCard[];
 };
 
+type PropertySetView = {
+  id: string;
+  color: string | null;
+  isComplete: boolean;
+  properties: ServerCard[];
+};
+
 type StateEnvelope =
   | { type: "STATE"; gameState: ServerGameState }
   | { type: "START_TURN"; playerId: string }
@@ -99,6 +106,7 @@ type Action =
       fromSetId: string | null;
       toSetId: string;
       position?: number;
+      toColor?: string | null;
     };
 
 const GAME_API = import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
@@ -111,6 +119,8 @@ const toWs = (base: string) =>
 const assetForCard = (c: ServerCard) =>
   !c || c.id === 999 ? cardBack : cardAssetMap[c.id] ?? cardBack;
 const MAX_HAND_SIZE = 7;
+const ALL_COLOR_COUNT = 10;
+const NEW_PROPERTY_SET_ID = "NEW_SET";
 
 /** Click-only hand card (drag removed) */
 const DraggableCard: React.FC<{
@@ -174,6 +184,15 @@ const PlayScreen: React.FC = () => {
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
   const [spentThisTurn, setSpentThisTurn] = useState(0);
+  const [isPositioning, setIsPositioning] = useState(false);
+  const [positioningCard, setPositioningCard] = useState<{
+    card: ServerCard;
+    fromSetId: string;
+  } | null>(null);
+  const [positionTarget, setPositionTarget] = useState<{
+    toSetId: string;
+    toColor?: string | null;
+  } | null>(null);
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [discardSelection, setDiscardSelection] = useState<number[]>([]);
     // activeCard state removed with drag/drop
@@ -451,10 +470,58 @@ const PlayScreen: React.FC = () => {
     return m;
   }, [game?.playerState]);
 
+  const myPropertySets = useMemo<PropertySetView[]>(() => {
+    const ps = game?.playerState?.[myPID];
+    if (!ps?.propertyCollection) return [];
+    const rawCollection = (ps.propertyCollection as any).collection ?? ps.propertyCollection;
+    if (!rawCollection || typeof rawCollection !== "object") return [];
+    return Object.entries(rawCollection).map(([setId, setVal]) => {
+      const properties: ServerCard[] = Array.isArray(setVal)
+        ? (setVal as unknown as ServerCard[])
+        : (setVal && Array.isArray((setVal as any).properties)
+          ? (setVal as any).properties
+          : []);
+      return {
+        id: setId,
+        color: (setVal as any)?.color ?? null,
+        isComplete: Boolean((setVal as any)?.isComplete),
+        properties,
+      };
+    });
+  }, [game?.playerState, myPID]);
+
+  const formatColor = useCallback((value?: string | null) => {
+    if (!value) return "Unassigned";
+    return value.charAt(0) + value.slice(1).toLowerCase();
+  }, []);
+
+  const isRainbowCard = useCallback(
+    (colors?: string[]) => (colors?.length ?? 0) >= ALL_COLOR_COUNT,
+    []
+  );
+
+  const positioningTargets = useMemo(() => {
+    if (!positioningCard) {
+      return { existing: [] as PropertySetView[], newColors: [] as string[], isRainbow: false };
+    }
+    const cardColors = positioningCard.card.colors ?? [];
+    const isRainbow = isRainbowCard(cardColors);
+    const existing = myPropertySets.filter((set) => {
+      if (set.id === positioningCard.fromSetId) return false;
+      if (set.isComplete) return false;
+      if (isRainbow) return true;
+      if (!set.color) return false;
+      return cardColors.includes(set.color);
+    });
+    const newColors = isRainbow ? [] : Array.from(new Set(cardColors));
+    return { existing, newColors, isRainbow };
+  }, [isRainbowCard, myPropertySets, positioningCard]);
+
   /** Click-menu actions */
   const onCardClick = (card: ServerCard) => {
     if (!isMyTurn) return;
     if (isDiscarding) return;
+    if (isPositioning) return;
     setMenuCard(card);
     if (card.type === "PROPERTY") {
       const colors = card.colors ?? [];
@@ -496,6 +563,44 @@ const PlayScreen: React.FC = () => {
     setMenuCard(null);
     setColorChoices(null);
   };
+
+  const openPositioning = useCallback(() => {
+    if (!isMyTurn || isDiscarding) return;
+    if (myPropertySets.length === 0) return;
+    setMenuCard(null);
+    setColorChoices(null);
+    setIsPositioning(true);
+    setPositioningCard(null);
+    setPositionTarget(null);
+  }, [isMyTurn, isDiscarding, myPropertySets.length]);
+
+  const closePositioning = useCallback(() => {
+    setIsPositioning(false);
+    setPositioningCard(null);
+    setPositionTarget(null);
+  }, []);
+
+  const selectPositioningCard = useCallback((card: ServerCard, fromSetId: string) => {
+    setPositioningCard({ card, fromSetId });
+    setPositionTarget(null);
+  }, []);
+
+  const selectPositionTarget = useCallback((toSetId: string, toColor?: string | null) => {
+    setPositionTarget({ toSetId, toColor });
+  }, []);
+
+  const confirmPositioning = useCallback(() => {
+    if (!isMyTurn || !positioningCard || !positionTarget) return;
+    const action: Action = {
+      type: "MoveProperty",
+      cardId: positioningCard.card.id,
+      fromSetId: positioningCard.fromSetId,
+      toSetId: positionTarget.toSetId,
+      ...(positionTarget.toColor ? { toColor: positionTarget.toColor } : {}),
+    };
+    wsSend(action);
+    closePositioning();
+  }, [closePositioning, isMyTurn, positionTarget, positioningCard, wsSend]);
 
   /** DnD drop handling */
   // parseDropId removed with drag/drop
@@ -577,6 +682,24 @@ const PlayScreen: React.FC = () => {
     });
   }, [discardNeeded, isDiscarding, myHand]);
 
+  useEffect(() => {
+    if (!isPositioning) return;
+    if (!isMyTurn || isDiscarding) {
+      closePositioning();
+    }
+  }, [closePositioning, isDiscarding, isMyTurn, isPositioning]);
+
+  useEffect(() => {
+    if (!isPositioning || !positioningCard) return;
+    const stillOwned = myPropertySets.some((set) =>
+      set.properties.some((card) => card.id === positioningCard.card.id)
+    );
+    if (!stillOwned) {
+      setPositioningCard(null);
+      setPositionTarget(null);
+    }
+  }, [isPositioning, myPropertySets, positioningCard]);
+
   return (
     <div className="mat-stage">
 
@@ -610,6 +733,13 @@ const PlayScreen: React.FC = () => {
           <div>
             Plays left: <b>{playsLeft}</b>
           </div>
+          <button
+            className="position-button"
+            onClick={openPositioning}
+            disabled={!isMyTurn || isDiscarding || myPropertySets.length === 0}
+          >
+            Position
+          </button>
           <div
             className={`ws-dot ${wsReady ? "on" : "off"}`}
             title={wsReady ? "Connected" : "Reconnecting..."}
@@ -659,13 +789,138 @@ const PlayScreen: React.FC = () => {
             <button
               className="end-turn-button"
               onClick={sendEndTurn}
-              disabled={!isMyTurn || isDiscarding}
+              disabled={!isMyTurn || isDiscarding || isPositioning}
             >
               End Turn
             </button>,
             document.body
           )
         : null}
+
+      {isPositioning && (
+        <div className="position-overlay" role="dialog" aria-modal="true" aria-labelledby="position-title">
+          <div className="position-modal">
+            <div className="position-header">
+              <div className="position-title" id="position-title">
+                Position Properties
+              </div>
+              <div className="position-subtitle">
+                Select a card and choose where it should live.
+              </div>
+            </div>
+            <div className="position-body">
+              <div className="position-section">
+                <div className="position-section-title">Your properties</div>
+                {myPropertySets.length === 0 ? (
+                  <div className="position-empty">No properties in play yet.</div>
+                ) : (
+                  myPropertySets.map((set) => (
+                    <div key={set.id} className="position-set">
+                      <div className="position-set-title">
+                        {formatColor(set.color)}
+                        {set.isComplete ? " (Complete)" : ""}
+                      </div>
+                      <div className="position-set-row">
+                        {set.properties.map((card, idx) => {
+                          const selected =
+                            positioningCard?.card.id === card.id &&
+                            positioningCard?.fromSetId === set.id;
+                          return (
+                            <button
+                              key={`position-card-${set.id}-${card.id}-${idx}`}
+                              type="button"
+                              className={`position-card ${selected ? "selected" : ""}`}
+                              onClick={() => selectPositioningCard(card, set.id)}
+                            >
+                              <img src={assetForCard(card)} alt={card.type} draggable={false} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="position-section">
+                <div className="position-section-title">Destination</div>
+                {!positioningCard ? (
+                  <div className="position-empty">Choose a card to see valid destinations.</div>
+                ) : (
+                  <>
+                    <div className="position-selected">
+                      Selected card #{positioningCard.card.id}
+                    </div>
+                    <div className="position-targets">
+                      {positioningTargets.existing.map((set) => {
+                        const selected = positionTarget?.toSetId === set.id;
+                        return (
+                          <button
+                            key={`position-target-${set.id}`}
+                            type="button"
+                            className={`position-target ${selected ? "selected" : ""}`}
+                            onClick={() => selectPositionTarget(set.id)}
+                          >
+                            {formatColor(set.color)} set
+                          </button>
+                        );
+                      })}
+                      {positioningTargets.existing.length === 0 && (
+                        <div className="position-empty">
+                          No compatible existing sets.
+                        </div>
+                      )}
+                    </div>
+                    <div className="position-section-title">Start new set</div>
+                    <div className="position-targets">
+                      {positioningTargets.newColors.map((color) => {
+                        const selected =
+                          positionTarget?.toSetId === NEW_PROPERTY_SET_ID &&
+                          positionTarget?.toColor === color;
+                        return (
+                          <button
+                            key={`position-new-${color}`}
+                            type="button"
+                            className={`position-target ${selected ? "selected" : ""}`}
+                            onClick={() => selectPositionTarget(NEW_PROPERTY_SET_ID, color)}
+                          >
+                            New {formatColor(color)} set
+                          </button>
+                        );
+                      })}
+                      {positioningTargets.isRainbow && (
+                        <div className="position-empty">
+                          Ten-color wilds cannot start a new set.
+                        </div>
+                      )}
+                      {!positioningTargets.isRainbow &&
+                        positioningTargets.newColors.length === 0 && (
+                          <div className="position-empty">No new set options.</div>
+                        )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="position-actions">
+              <button
+                type="button"
+                className="position-secondary"
+                onClick={closePositioning}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="position-primary"
+                onClick={confirmPositioning}
+                disabled={!positioningCard || !positionTarget}
+              >
+                Position Card
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDiscarding && (
         <div className="discard-overlay" role="dialog" aria-modal="true" aria-labelledby="discard-title">
@@ -781,26 +1036,6 @@ const PlayScreen: React.FC = () => {
                   Play as {c}
                 </button>
               ))}
-            </div>
-          )}
-          {menuCard.type === "PROPERTY" && (
-            <div className="card-menu-row">
-              <button
-                className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 
-                           text-white font-medium px-4 py-2 rounded-lg 
-                           transition-colors duration-200 shadow-md"
-                disabled={!isMyTurn}
-                onClick={() => {
-                  // TODO: Implement property movement UI
-                  alert(
-                    "MoveProperty action is available - UI implementation needed"
-                  );
-                  setMenuCard(null);
-                  setColorChoices(null);
-                }}
-              >
-                Move Property
-              </button>
             </div>
           )}
           <div className="card-menu-row">
