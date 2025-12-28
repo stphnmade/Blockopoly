@@ -117,7 +117,7 @@ fun createCardMapping() : Map<Int, Card> {
         repeat(1) {id++; put(id, Card.Property(id, setOf(Color.RAILROAD, Color.TURQOUISE), 2))}
         repeat(1) {id++; put(id, Card.Property(id, setOf(Color.RAILROAD, Color.UTILITY), 2))}
         repeat(2) {id++; put(id, Card.Property(id, setOf(Color.RED, Color.YELLOW), 3))}
-        repeat(2) {id++; put(id, Card.Property(id, ALL_COLOR_SET, null))}
+        repeat(2) {id++; put(id, Card.Property(id, ALL_COLOR_SET, 0))}
 
         // Money cards
         repeat(6) { id++; put(id, Card.Money(id, 1))}

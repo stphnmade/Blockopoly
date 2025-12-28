@@ -170,7 +170,7 @@ data class PropertySet(val propertySetId: String, val properties: MutableList<Ca
     }
 
     fun getNumOfSellableCards(): Int {
-        return properties.filter { it.value != null }.size + (if (house == null) 0 else 1) + (if (hotel == null) 0 else 1)
+        return properties.size + (if (house == null) 0 else 1) + (if (hotel == null) 0 else 1)
     }
 
     private fun isCompleteSet() : Boolean {

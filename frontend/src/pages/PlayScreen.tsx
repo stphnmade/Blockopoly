@@ -100,6 +100,16 @@ type Action =
   | { type: "PlayProperty"; id: number; color: Color }
   | { type: "Discard"; cardId: number }
   | { type: "PassGo"; id: number }
+  | { type: "AcceptCharge"; payment: number[] }
+  | { type: "JustSayNo"; ids: number[]; respondingTo?: string | null }
+  | {
+      type: "RequestRent";
+      rentCardId: number;
+      rentDoublers: number[];
+      rentingSetId: string;
+      rentColor?: string | null;
+      target?: string | null;
+    }
   | {
       type: "MoveProperty";
       cardId: number;
@@ -183,7 +193,6 @@ const PlayScreen: React.FC = () => {
   const [wsReady, setWsReady] = useState(false);
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
-  const [spentThisTurn, setSpentThisTurn] = useState(0);
   const [isPositioning, setIsPositioning] = useState(false);
   const [positioningCard, setPositioningCard] = useState<{
     card: ServerCard;
@@ -195,11 +204,28 @@ const PlayScreen: React.FC = () => {
   } | null>(null);
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [discardSelection, setDiscardSelection] = useState<number[]>([]);
+  const [isRenting, setIsRenting] = useState(false);
+  const [rentCard, setRentCard] = useState<ServerCard | null>(null);
+  const [rentColor, setRentColor] = useState<string | null>(null);
+  const [rentSetId, setRentSetId] = useState<string | null>(null);
+  const [rentChargeAll, setRentChargeAll] = useState(true);
+  const [rentTarget, setRentTarget] = useState<string | null>(null);
+  const [rentCharge, setRentCharge] = useState<{
+    requesterId: string;
+    amount: number;
+    color?: string | null;
+  } | null>(null);
+  const [rentBankSelection, setRentBankSelection] = useState<number[]>([]);
+  const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
+  const [rentNotice, setRentNotice] = useState<{
+    message: string;
+  } | null>(null);
     // activeCard state removed with drag/drop
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(500);
+  const rentNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wsUrl = useMemo(
     () =>
@@ -247,7 +273,6 @@ const PlayScreen: React.FC = () => {
       setGame(snapshot);
       const mine = snapshot.playerState?.[myPID];
       animateToNewHand(mine?.hand ?? []);
-      if ((snapshot.cardsLeftToPlay ?? 0) >= 3) setSpentThisTurn(0);
     },
     [myPID, animateToNewHand]
   );
@@ -261,6 +286,11 @@ const PlayScreen: React.FC = () => {
     },
     [myPID]
   );
+
+  const formatColor = useCallback((value?: string | null) => {
+    if (!value) return "Unassigned";
+    return value.charAt(0) + value.slice(1).toLowerCase();
+  }, []);
 
   const connect = useCallback(() => {
     if (!roomId || !myPID) {
@@ -304,6 +334,37 @@ const PlayScreen: React.FC = () => {
             }
             return next;
           });
+          return;
+        }
+        if ((msg as any).type === "RENT_REQUEST") {
+          const payload = msg as any;
+          const requester = payload.requester as string | undefined;
+          const targets = Array.isArray(payload.targets) ? (payload.targets as string[]) : [];
+          const rentColor = payload.color as string | undefined;
+          const targetLabel =
+            targets.length > 1 ? "everyone" : targets.length === 1 ? displayName(targets[0]) : "";
+          const rentLabel = rentColor ? `rent for ${formatColor(rentColor)}` : "rent";
+          const message = `${displayName(requester)} charges ${rentLabel}${
+            targetLabel ? ` from ${targetLabel}` : ""
+          }`;
+          setRentNotice({ message });
+          if (rentNoticeTimer.current) {
+            clearTimeout(rentNoticeTimer.current);
+          }
+          rentNoticeTimer.current = setTimeout(() => {
+            setRentNotice(null);
+          }, 3200);
+          if (targets.includes(myPID)) {
+            const amount =
+              typeof payload.amount === "number"
+                ? payload.amount
+                : Number(payload.amount ?? 0) || 0;
+            setRentCharge({
+              requesterId: requester ?? "",
+              amount,
+              color: rentColor ?? null,
+            });
+          }
           return;
         }
         // Handle server PATCH frames with event array (optimistic updates)
@@ -376,7 +437,6 @@ const PlayScreen: React.FC = () => {
         if ((msg as any).type === "START_TURN") {
           const pid = (msg as any).playerId as string;
           setGame((g) => (g ? { ...g, playerAtTurn: pid } : g));
-          if (pid === myPID) setSpentThisTurn(0);
           return;
         }
         if ((msg as any).type === "DRAW") {
@@ -404,7 +464,7 @@ const PlayScreen: React.FC = () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       reconnectTimer.current = setTimeout(() => connect(), delay);
     };
-  }, [navigate, wsUrl, roomId, myPID, handleStateSnapshot, handleDraw]);
+  }, [navigate, wsUrl, roomId, myPID, handleStateSnapshot, handleDraw, displayName, formatColor]);
 
   useEffect(() => {
     connect();
@@ -417,7 +477,7 @@ const PlayScreen: React.FC = () => {
 
   /** Derived */
   const isMyTurn = game?.playerAtTurn === myPID;
-  const playsLeft = Math.max(0, (game?.cardsLeftToPlay ?? 0) - spentThisTurn);
+  const playsLeft = Math.max(0, game?.cardsLeftToPlay ?? 0);
   const discardNeeded = Math.max(0, myHand.length - MAX_HAND_SIZE);
   const canConfirmDiscard = discardNeeded > 0 && discardSelection.length === discardNeeded;
 
@@ -490,10 +550,19 @@ const PlayScreen: React.FC = () => {
     });
   }, [game?.playerState, myPID]);
 
-  const formatColor = useCallback((value?: string | null) => {
-    if (!value) return "Unassigned";
-    return value.charAt(0) + value.slice(1).toLowerCase();
-  }, []);
+  const myBankCards = useMemo(
+    () => game?.playerState?.[myPID]?.bank ?? [],
+    [game?.playerState, myPID]
+  );
+
+  const myPropertyCards = useMemo(
+    () => myPropertySets.flatMap((set) => set.properties),
+    [myPropertySets]
+  );
+
+  const getCardValue = (card: ServerCard) => (typeof card.value === "number" ? card.value : 0);
+
+  
 
   const isRainbowCard = useCallback(
     (colors?: string[]) => (colors?.length ?? 0) >= ALL_COLOR_COUNT,
@@ -517,11 +586,110 @@ const PlayScreen: React.FC = () => {
     return { existing, newColors, isRainbow };
   }, [isRainbowCard, myPropertySets, positioningCard]);
 
+  const rentTargets = useMemo(
+    () => orderedPids.filter((pid) => pid && pid !== myPID),
+    [orderedPids, myPID]
+  );
+  const hasRentTargets = rentTargets.length > 0;
+
+  const rentableSetMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    myPropertySets.forEach((set) => {
+      if (!set.color) return;
+      const list = map.get(set.color) ?? [];
+      list.push(set.id);
+      map.set(set.color, list);
+    });
+    return map;
+  }, [myPropertySets]);
+
+  const rentColorOptions = useMemo(() => {
+    if (!rentCard) return [];
+    const cardColors = rentCard.colors ?? [];
+    const isWildRent = isRainbowCard(cardColors);
+    const availableColors = Array.from(rentableSetMap.keys());
+    const colors = isWildRent
+      ? availableColors
+      : cardColors.filter((color) => rentableSetMap.has(color));
+    return colors.map((color) => ({
+      color,
+      setIds: rentableSetMap.get(color) ?? [],
+    }));
+  }, [isRainbowCard, rentCard, rentableSetMap]);
+
+  const autoRentColor = rentColorOptions.length === 1 ? rentColorOptions[0].color : null;
+  const autoRentSetId =
+    rentColorOptions.length === 1 ? rentColorOptions[0].setIds?.[0] ?? null : null;
+  const effectiveRentColor = rentColor ?? autoRentColor;
+  const effectiveRentSetId = rentSetId ?? autoRentSetId;
+
+  const canConfirmRent =
+    isMyTurn &&
+    playsLeft > 0 &&
+    !!rentCard &&
+    !!effectiveRentColor &&
+    !!effectiveRentSetId &&
+    hasRentTargets &&
+    (rentChargeAll || !!rentTarget);
+
+  const rentAmountDue = rentCharge?.amount ?? 0;
+  const rentBankTotal = myBankCards.reduce((sum, card) => sum + getCardValue(card), 0);
+  const rentPropertyTotal = myPropertyCards.reduce((sum, card) => sum + getCardValue(card), 0);
+  const rentTotalValue = rentBankTotal + rentPropertyTotal;
+
+  const rentBankSelected = new Set(rentBankSelection);
+  const rentPropertySelected = new Set(rentPropertySelection);
+  const rentBankSelectedTotal = myBankCards
+    .filter((card) => rentBankSelected.has(card.id))
+    .reduce((sum, card) => sum + getCardValue(card), 0);
+  const rentPropertySelectedTotal = myPropertyCards
+    .filter((card) => rentPropertySelected.has(card.id))
+    .reduce((sum, card) => sum + getCardValue(card), 0);
+  const rentSelectedTotal = rentBankSelectedTotal + rentPropertySelectedTotal;
+  const rentRemaining = Math.max(0, rentAmountDue - rentSelectedTotal);
+
+  const rentBankForced = !!rentCharge && rentBankTotal < rentAmountDue;
+  const rentPropertyForced = !!rentCharge && rentTotalValue <= rentAmountDue;
+  const rentPropertyAllowed =
+    !!rentCharge && rentBankTotal < rentAmountDue && !rentPropertyForced;
+
+  const rentBankIds = useMemo(() => myBankCards.map((card) => card.id), [myBankCards]);
+  const rentPropertyIds = useMemo(
+    () => myPropertyCards.map((card) => card.id),
+    [myPropertyCards]
+  );
+  const rentBankSelectionComplete =
+    rentBankIds.length === rentBankSelection.length &&
+    rentBankIds.every((id) => rentBankSelected.has(id));
+  const rentPropertySelectionComplete =
+    rentPropertyIds.length === rentPropertySelection.length &&
+    rentPropertyIds.every((id) => rentPropertySelected.has(id));
+
+  const canPayRent =
+    !!rentCharge &&
+    (rentTotalValue <= rentAmountDue
+      ? rentBankSelectionComplete && rentPropertySelectionComplete
+      : rentBankTotal >= rentAmountDue
+        ? rentPropertySelection.length === 0 && rentSelectedTotal >= rentAmountDue
+        : rentBankSelectionComplete && rentSelectedTotal >= rentAmountDue);
+
+  const jsnCards = useMemo(
+    () =>
+      myHand.filter(
+        (card) => card.type === "GENERAL_ACTION" && card.actionType === "JUST_SAY_NO"
+      ),
+    [myHand]
+  );
   /** Click-menu actions */
   const onCardClick = (card: ServerCard) => {
     if (!isMyTurn) return;
     if (isDiscarding) return;
     if (isPositioning) return;
+    if (isRenting) return;
+    if (card.type === "RENT_ACTION") {
+      openRentMenu(card);
+      return;
+    }
     setMenuCard(card);
     if (card.type === "PROPERTY") {
       const colors = card.colors ?? [];
@@ -533,8 +701,6 @@ const PlayScreen: React.FC = () => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
     if (menuCard.type === "MONEY") {
       wsSend({ type: "PlayMoney", id: menuCard.id });
-      console.debug("[Play] increment spentThisTurn (menu bank)", { cardId: menuCard.id, before: spentThisTurn });
-      setSpentThisTurn((n) => n + 1);
     }
     setMenuCard(null);
     setColorChoices(null);
@@ -544,8 +710,6 @@ const PlayScreen: React.FC = () => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
     if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "PASS_GO") return;
     wsSend({ type: "PassGo", id: menuCard.id });
-    console.debug("[Play] increment spentThisTurn (pass go)", { cardId: menuCard.id, before: spentThisTurn });
-    setSpentThisTurn((n) => n + 1);
     setMenuCard(null);
     setColorChoices(null);
   };
@@ -558,8 +722,6 @@ const PlayScreen: React.FC = () => {
       return;
     }
   wsSend({ type: "PlayProperty", id: menuCard.id, color: chosen });
-  console.debug("[Play] increment spentThisTurn (menu property)", { cardId: menuCard.id, color: chosen, before: spentThisTurn });
-  setSpentThisTurn((n) => n + 1);
     setMenuCard(null);
     setColorChoices(null);
   };
@@ -601,6 +763,100 @@ const PlayScreen: React.FC = () => {
     wsSend(action);
     closePositioning();
   }, [closePositioning, isMyTurn, positionTarget, positioningCard, wsSend]);
+
+  const openRentMenu = useCallback((card: ServerCard) => {
+    if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
+    setMenuCard(null);
+    setColorChoices(null);
+    setIsRenting(true);
+    setRentCard(card);
+    setRentColor(null);
+    setRentSetId(null);
+    setRentChargeAll(true);
+    setRentTarget(null);
+  }, [isDiscarding, isMyTurn, isPositioning, playsLeft]);
+
+  const closeRentMenu = useCallback(() => {
+    setIsRenting(false);
+    setRentCard(null);
+    setRentColor(null);
+    setRentSetId(null);
+    setRentChargeAll(true);
+    setRentTarget(null);
+  }, []);
+
+  const selectRentColor = useCallback(
+    (color: string) => {
+      const option = rentColorOptions.find((entry) => entry.color === color);
+      setRentColor(color);
+      setRentSetId(option?.setIds?.[0] ?? null);
+    },
+    [rentColorOptions]
+  );
+
+  const confirmRent = useCallback(() => {
+    if (!rentCard || !effectiveRentColor || !effectiveRentSetId) return;
+    if (!isMyTurn || playsLeft <= 0) return;
+    if (!hasRentTargets) return;
+    if (!rentChargeAll && !rentTarget) return;
+    wsSend({
+      type: "RequestRent",
+      rentCardId: rentCard.id,
+      rentDoublers: [],
+      rentingSetId: effectiveRentSetId,
+      rentColor: effectiveRentColor,
+      target: rentChargeAll ? null : rentTarget,
+    });
+    closeRentMenu();
+  }, [
+    closeRentMenu,
+    effectiveRentColor,
+    effectiveRentSetId,
+    hasRentTargets,
+    isMyTurn,
+    playsLeft,
+    rentCard,
+    rentChargeAll,
+    rentTarget,
+    wsSend,
+  ]);
+
+  const toggleRentBankCard = useCallback(
+    (cardId: number) => {
+      if (!rentCharge || rentBankForced) return;
+      setRentBankSelection((prev) =>
+        prev.includes(cardId) ? prev.filter((id) => id !== cardId) : [...prev, cardId]
+      );
+    },
+    [rentBankForced, rentCharge]
+  );
+
+  const toggleRentPropertyCard = useCallback(
+    (cardId: number) => {
+      if (!rentCharge || !rentPropertyAllowed) return;
+      setRentPropertySelection((prev) =>
+        prev.includes(cardId) ? prev.filter((id) => id !== cardId) : [...prev, cardId]
+      );
+    },
+    [rentCharge, rentPropertyAllowed]
+  );
+
+  const submitRentPayment = useCallback(() => {
+    if (!rentCharge || !canPayRent) return;
+    const payment = [...rentBankSelection, ...rentPropertySelection];
+    wsSend({ type: "AcceptCharge", payment });
+    setRentCharge(null);
+    setRentBankSelection([]);
+    setRentPropertySelection([]);
+  }, [canPayRent, rentBankSelection, rentCharge, rentPropertySelection, wsSend]);
+
+  const playJustSayNo = useCallback(() => {
+    if (!rentCharge || jsnCards.length === 0) return;
+    wsSend({ type: "JustSayNo", ids: [jsnCards[0].id] });
+    setRentCharge(null);
+    setRentBankSelection([]);
+    setRentPropertySelection([]);
+  }, [jsnCards, rentCharge, wsSend]);
 
   /** DnD drop handling */
   // parseDropId removed with drag/drop
@@ -700,6 +956,108 @@ const PlayScreen: React.FC = () => {
     }
   }, [isPositioning, myPropertySets, positioningCard]);
 
+  useEffect(() => {
+    if (!isRenting) return;
+    if (!isMyTurn || isDiscarding || isPositioning) {
+      closeRentMenu();
+    }
+  }, [closeRentMenu, isDiscarding, isMyTurn, isPositioning, isRenting]);
+
+  useEffect(() => {
+    if (!isRenting || !rentCard) return;
+    const stillInHand = myHand.some((card) => card.id === rentCard.id);
+    if (!stillInHand) {
+      closeRentMenu();
+    }
+  }, [closeRentMenu, isRenting, myHand, rentCard]);
+
+  useEffect(() => {
+    if (!isRenting) return;
+    if (rentColorOptions.length === 1 && !rentColor) {
+      const only = rentColorOptions[0];
+      setRentColor(only.color);
+      setRentSetId(only.setIds[0] ?? null);
+    }
+  }, [isRenting, rentColor, rentColorOptions]);
+
+  useEffect(() => {
+    if (!isRenting) return;
+    if (!rentChargeAll && rentTargets.length === 1 && !rentTarget) {
+      setRentTarget(rentTargets[0]);
+    }
+  }, [isRenting, rentChargeAll, rentTarget, rentTargets]);
+
+  useEffect(() => {
+    const pending = (game?.pendingInteractions as any)?.pendingInteractions;
+    if (!Array.isArray(pending)) {
+      setRentCharge(null);
+      return;
+    }
+    const rentInteraction = pending.find(
+      (entry) =>
+        entry?.awaitingResponseFrom === myPID &&
+        entry?.action?.type === "RENT_REQUEST"
+    );
+    if (!rentInteraction) {
+      setRentCharge(null);
+      return;
+    }
+    const action = rentInteraction.action ?? {};
+    const next = {
+      requesterId: action.requester ?? "",
+      amount:
+        typeof action.amount === "number"
+          ? action.amount
+          : Number(action.amount ?? 0) || 0,
+      color: action.color ?? null,
+    };
+    setRentCharge((prev) =>
+      prev &&
+      prev.requesterId === next.requesterId &&
+      prev.amount === next.amount &&
+      prev.color === next.color
+        ? prev
+        : next
+    );
+  }, [game?.pendingInteractions, myPID]);
+
+  useEffect(() => {
+    if (!rentCharge) {
+      setRentBankSelection([]);
+      setRentPropertySelection([]);
+      return;
+    }
+    if (rentBankTotal < rentAmountDue) {
+      setRentBankSelection(rentBankIds);
+    } else {
+      setRentBankSelection((prev) => prev.filter((id) => rentBankIds.includes(id)));
+    }
+    if (rentTotalValue <= rentAmountDue) {
+      setRentPropertySelection(rentPropertyIds);
+    } else if (rentBankTotal >= rentAmountDue) {
+      setRentPropertySelection([]);
+    } else {
+      setRentPropertySelection((prev) =>
+        prev.filter((id) => rentPropertyIds.includes(id))
+      );
+    }
+  }, [
+    rentAmountDue,
+    rentBankIds,
+    rentBankTotal,
+    rentCharge,
+    rentPropertyIds,
+    rentTotalValue,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (rentNoticeTimer.current) {
+        clearTimeout(rentNoticeTimer.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="mat-stage">
 
@@ -746,6 +1104,12 @@ const PlayScreen: React.FC = () => {
           />
         </div>
 
+        {rentNotice && (
+          <div className="rent-notice" role="status" aria-live="polite">
+            {rentNotice.message}
+          </div>
+        )}
+
     {/* Actions: the End Turn button is rendered as a portal into document.body
       so it centers relative to the viewport (not the transformed .mat-stage) */}
 
@@ -768,7 +1132,10 @@ const PlayScreen: React.FC = () => {
             const canDrag =
               isMyTurn &&
               playsLeft > 0 &&
-              (card.type === "MONEY" || card.type === "PROPERTY" || isPassGo);
+              (card.type === "MONEY" ||
+                card.type === "PROPERTY" ||
+                card.type === "RENT_ACTION" ||
+                isPassGo);
             return (
               <DraggableCard
                 key={`${card.id}-${idx}`}
@@ -916,6 +1283,217 @@ const PlayScreen: React.FC = () => {
                 disabled={!positioningCard || !positionTarget}
               >
                 Position Card
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRenting && rentCard && (
+        <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="rent-title">
+          <div className="rent-modal">
+            <div className="rent-header">
+              <div>
+                <div className="rent-title" id="rent-title">
+                  Charge Rent
+                </div>
+                <div className="rent-subtitle">
+                  Choose a rent color and target to charge.
+                </div>
+              </div>
+              <div className="rent-card-preview">
+                <img src={assetForCard(rentCard)} alt="Rent card" draggable={false} />
+              </div>
+            </div>
+            <div className="rent-body">
+              <div className="rent-section">
+                <div className="rent-section-title">Rent color</div>
+                {rentColorOptions.length === 0 ? (
+                  <div className="rent-empty">
+                    You have no properties that match this rent card.
+                  </div>
+                ) : rentColorOptions.length === 1 ? (
+                  <div className="rent-auto">
+                    Auto-selected: {formatColor(rentColorOptions[0].color)}
+                  </div>
+                ) : (
+                  <div className="rent-options">
+                    {rentColorOptions.map((option) => {
+                      const selected = rentColor === option.color;
+                      return (
+                        <button
+                          key={option.color}
+                          type="button"
+                          className={`rent-option ${selected ? "selected" : ""}`}
+                          onClick={() => selectRentColor(option.color)}
+                        >
+                          {formatColor(option.color)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="rent-section">
+                <div className="rent-section-title">Targets</div>
+                <div className="rent-options">
+                  <button
+                    type="button"
+                    className={`rent-option ${rentChargeAll ? "selected" : ""}`}
+                    onClick={() => {
+                      setRentChargeAll(true);
+                      setRentTarget(null);
+                    }}
+                    disabled={!hasRentTargets}
+                  >
+                    All opponents
+                  </button>
+                  <button
+                    type="button"
+                    className={`rent-option ${!rentChargeAll ? "selected" : ""}`}
+                    onClick={() => setRentChargeAll(false)}
+                    disabled={!hasRentTargets}
+                  >
+                    Single opponent
+                  </button>
+                </div>
+                {!rentChargeAll && (
+                  <div className="rent-options">
+                    {rentTargets.map((pid) => {
+                      const selected = rentTarget === pid;
+                      return (
+                        <button
+                          key={pid}
+                          type="button"
+                          className={`rent-option ${selected ? "selected" : ""}`}
+                          onClick={() => setRentTarget(pid)}
+                        >
+                          {displayName(pid)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {!rentChargeAll && rentTargets.length === 0 && (
+                  <div className="rent-empty">No opponents available.</div>
+                )}
+              </div>
+            </div>
+            <div className="rent-actions">
+              <button type="button" className="rent-secondary" onClick={closeRentMenu}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rent-primary"
+                onClick={confirmRent}
+                disabled={!canConfirmRent}
+              >
+                Charge Rent
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rentCharge && (
+        <div className="charge-overlay" role="dialog" aria-modal="true" aria-labelledby="charge-title">
+          <div className="charge-modal">
+            <div className="charge-header">
+              <div>
+                <div className="charge-title" id="charge-title">
+                  Pay Rent
+                </div>
+                <div className="charge-subtitle">
+                  {displayName(rentCharge.requesterId)} requests {rentAmountDue}M
+                  {rentCharge.color ? ` for ${formatColor(rentCharge.color)} rent.` : " in rent."}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="charge-jsn"
+                onClick={playJustSayNo}
+                disabled={jsnCards.length === 0}
+              >
+                Just Say No ({jsnCards.length})
+              </button>
+            </div>
+            <div className="charge-body">
+              <div className="charge-section">
+                <div className="charge-section-title">Bank (total {rentBankTotal}M)</div>
+                {myBankCards.length === 0 ? (
+                  <div className="charge-empty">No money in bank.</div>
+                ) : (
+                  <div className="charge-cards">
+                    {myBankCards.map((card) => {
+                      const selected = rentBankSelected.has(card.id);
+                      return (
+                        <button
+                          key={`rent-bank-${card.id}`}
+                          type="button"
+                          className={`charge-card ${selected ? "selected" : ""}`}
+                          onClick={() => toggleRentBankCard(card.id)}
+                          disabled={Boolean(rentBankForced)}
+                          aria-pressed={selected}
+                        >
+                          <img src={assetForCard(card)} alt="Bank card" draggable={false} />
+                          <span className="charge-value">{getCardValue(card)}M</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="charge-section">
+                <div className="charge-section-title">
+                  Properties (total {rentPropertyTotal}M)
+                </div>
+                {myPropertyCards.length === 0 ? (
+                  <div className="charge-empty">No properties to pay.</div>
+                ) : (
+                  <div className="charge-cards">
+                    {myPropertyCards.map((card) => {
+                      const selected = rentPropertySelected.has(card.id);
+                      return (
+                        <button
+                          key={`rent-prop-${card.id}`}
+                          type="button"
+                          className={`charge-card ${selected ? "selected" : ""}`}
+                          onClick={() => toggleRentPropertyCard(card.id)}
+                          disabled={!rentPropertyAllowed}
+                          aria-pressed={selected}
+                        >
+                          <img src={assetForCard(card)} alt="Property card" draggable={false} />
+                          <span className="charge-value">{getCardValue(card)}M</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="charge-summary">
+              <div>Selected: {rentSelectedTotal}M</div>
+              <div>Remaining: {rentRemaining}M</div>
+            </div>
+            {rentBankForced && (
+              <div className="charge-note">
+                Bank money applies first and is selected automatically.
+              </div>
+            )}
+            {rentPropertyForced && (
+              <div className="charge-note">
+                All cards are required to cover this rent.
+              </div>
+            )}
+            <div className="charge-actions">
+              <button
+                type="button"
+                className="charge-primary"
+                onClick={submitRentPayment}
+                disabled={!canPayRent}
+              >
+                Pay Rent
               </button>
             </div>
           </div>

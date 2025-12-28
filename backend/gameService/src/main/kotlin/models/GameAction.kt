@@ -27,7 +27,13 @@ data class PlayMoney(val id: Int) : GameAction
 
 @Serializable
 @SerialName("RequestRent")
-data class RequestRent(val rentCardId: Int, val rentDoublers: List<Int>, val rentingSetId: String, val target: String? = null) : GameAction
+data class RequestRent(
+    val rentCardId: Int,
+    val rentDoublers: List<Int>,
+    val rentingSetId: String,
+    val rentColor: Color? = null,
+    val target: String? = null
+) : GameAction
 
 @Serializable
 @SerialName("AcceptCharge")
