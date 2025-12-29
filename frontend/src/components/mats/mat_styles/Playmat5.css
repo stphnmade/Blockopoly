@@ -1,260 +1,55 @@
-.playing-mat-5-players,
-.playing-mat-5-players * {
-  box-sizing: border-box;
+.playing-mat-outline-5-players {
+  background: transparent;
 }
-.playing-mat-5-players {
-  background: #e5e5e5;
-  height: 67.5rem;
-  position: relative;
+
+.playing-mat-outline-5-players .mat-stage {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  grid-template-rows:
+    minmax(0, 0.6fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+  grid-template-areas:
+    "top-left top top-right"
+    "left center right"
+    "bottom bottom bottom";
+}
+
+.player-1-space {
+  grid-area: bottom;
+  flex-direction: row;
+}
+
+.player-2-space {
+  grid-area: left;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
 .player-3-space {
-  width: 51rem;
-  height: 18.9375rem;
-  position: absolute;
-  left: 124.75rem;
-  top: 18.9375rem;
-  transform-origin: 0 0;
-  transform: rotate(-180deg) scale(1, 1);
+  grid-area: right;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
-.text {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4518944025039673rem;
-  font-weight: 400;
-  position: absolute;
-  left: 70.32rem;
-  top: 0rem;
-}
-.property-collection-zone {
-  position: absolute;
-  inset: 0;
-}
-.property-collection {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 33.790625rem;
-  height: 18.3275rem;
-  position: absolute;
-  left: 20.415625rem;
-  top: 0.294375rem;
-}
-.property-collection2 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 33.45625rem;
-  top: 5.125rem;
-  width: 7.8125rem;
-  height: 5.0625rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
-.money-collection-bank {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 9.45rem;
-  height: 14.890625rem;
-  position: absolute;
-  left: 9.75625rem;
-  top: 2.731875rem;
-  overflow: hidden;
-}
-.bank-pile {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 1.37rem;
-  top: 6.070625rem;
-  width: 6.705rem;
-  height: 3.37625rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
+
 .player-4-space {
-  width: 53.664375rem;
-  height: 18.728125rem;
-  position: absolute;
-  left: 55.351875rem;
-  top: 18.728125rem;
-  transform-origin: 0 0;
-  transform: rotate(-180deg) scale(1, 1);
+  grid-area: top-left;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
-.money-collection-bank2 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 9.45rem;
-  height: 14.890625rem;
-  position: absolute;
-  left: 5.214375rem;
-  top: 1.275rem;
-  overflow: hidden;
-}
-.bank-pile2 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 1.37rem;
-  top: 6.07375rem;
-  width: 6.705rem;
-  height: 3.37625rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
-.property-collection3 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 33.790625rem;
-  height: 18.3275rem;
-  position: absolute;
-  left: 18.755625rem;
-  top: 0rem;
-}
-.property-collection4 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 32.31875rem;
-  top: 7.330625rem;
-  width: 6.619375rem;
-  height: 5.085625rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
-.text2 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 68.13125rem;
-  top: 0rem;
-}
-.player-1-space {
-  width: 53.664375rem;
-  height: 18.728125rem;
-  position: absolute;
-  left: 29.125rem;
-  top: 48.75rem;
-}
-.money-collection-bank3 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 9.45rem;
-  height: 14.890625rem;
-  position: absolute;
-  left: 6.8125rem;
-  top: 1.4375rem;
-  overflow: hidden;
-}
-.bank-pile3 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 1.374375rem;
-  top: 6.07375rem;
-  width: 6.705rem;
-  height: 3.37625rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
-.property-collection5 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 33.790625rem;
-  height: 18.3275rem;
-  position: absolute;
-  left: 18.728125rem;
-  top: 0rem;
-}
-.property-collection6 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 32.494375rem;
-  top: 7.5025rem;
-  width: 6.705rem;
-  height: 5.205rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
+
 .player-5-space {
-  width: 47.25rem;
-  height: 18.75rem;
-  position: absolute;
-  left: 18.75rem;
-  top: 14.5625rem;
-  transform-origin: 0 0;
-  transform: rotate(90deg) scale(1, 1);
+  grid-area: top-right;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
-.player-2-space {
-  width: 52.75rem;
-  height: 18.75rem;
-  position: absolute;
-  left: 101.25rem;
-  top: 75.125rem;
-  transform-origin: 0 0;
-  transform: rotate(-90deg) scale(1, 1);
+
+.center-pile {
+  grid-area: center;
 }
-.money-collection-bank4 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 9.45rem;
-  height: 14.890625rem;
-  position: absolute;
-  left: 8.4875rem;
-  top: 1.25rem;
-  overflow: hidden;
-}
-.bank-pile4 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.4066956043243408rem;
-  font-weight: 400;
-  position: absolute;
-  left: 1.374375rem;
-  top: 6.070625rem;
-  width: 6.705rem;
-  height: 3.37625rem;
-  -webkit-text-stroke: 0.04688985273241997rem #000000;
-}
-.property-collection7 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.140625rem;
-  width: 33.790625rem;
-  height: 18.3275rem;
-  position: absolute;
-  left: 18.75625rem;
-  top: 0rem;
+
+.player-2-space .property-collection,
+.player-3-space .property-collection,
+.player-4-space .property-collection,
+.player-5-space .property-collection {
+  min-height: clamp(90px, 16vh, 210px);
 }

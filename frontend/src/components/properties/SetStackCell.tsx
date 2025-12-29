@@ -1,12 +1,15 @@
-import type { PropertySetVM, CardVM } from "../../types/viewmodels";
+import type { CardVM, PropertySetVM } from "../../types/viewmodels";
 
-export default function SetStackCell({ set, onOpenSet, enableDnD }: {
+export default function SetStackCell({
+  set,
+  onOpenSet,
+  enableDnD,
+}: {
   set: PropertySetVM;
   onOpenSet?: (key: string) => void;
   enableDnD?: boolean;
 }) {
-  void enableDnD; // currently unused but reserved for DnD hook wiring
-  const overlap = 12; // px
+  void enableDnD; // reserved for DnD hook wiring
   return (
     <button
       type="button"
@@ -14,21 +17,39 @@ export default function SetStackCell({ set, onOpenSet, enableDnD }: {
       onClick={() => onOpenSet?.(set.key)}
       aria-label={`${set.displayName} set with ${set.cards.length} cards${set.isComplete ? ", complete" : ""}`}
     >
-      {/* <div className="set-badge">{set.cards.length}{set.isComplete ? " ✓" : ""}</div> */}
-      <div className="set-stack" style={{ position: "relative" }}>
-  {set.cards.map((card: CardVM, idx: number) => (
-          <div
-            key={card.id}
-            className="set-card"
-            style={{
-              top: idx * overlap,
-              left: idx === set.cards.length - 1 ? 0 : 2,
-              zIndex: idx === set.cards.length - 1 ? 20 : 10 + idx,
-            }}
-          >
-            <img src={card.imageUrl ?? ""} alt={card.name} draggable={false} />
-          </div>
-        ))}
+      <div className="set-stack">
+        {set.cards.map((card: CardVM, idx: number) => {
+          const isWild = Boolean(card.isWild);
+          const assignedColor = card.assignedColor ? String(card.assignedColor) : "";
+          const assignedInitial = assignedColor ? assignedColor.charAt(0) : "";
+          return (
+            <div
+              key={card.id}
+              className={`set-card ${isWild ? "is-wild" : ""}`}
+              style={{
+                top: "50%",
+                left: "50%",
+                transform: `translate(-50%, calc(-50% + (var(--stack-offset, 10px) * ${idx})))`,
+                zIndex: 10 + idx,
+              }}
+            >
+              {card.imageUrl ? (
+                <img src={card.imageUrl} alt={card.name} draggable={false} />
+              ) : (
+                <div className="set-card-placeholder" />
+              )}
+              {isWild && (
+                <span
+                  className="wild-badge"
+                  title={`Wild${assignedColor ? `: ${assignedColor}` : ""}`}
+                >
+                  W
+                  {assignedInitial && <span className="wild-initial">{assignedInitial}</span>}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </button>
   );

@@ -1,222 +1,34 @@
-
 .playing-mat-outline-2-players {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #e5e5e5;
+  background: transparent;
 }
 
-.backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -1;
-}
-
-.mat-stage {
-  --scale: calc(min(100vw / 1920, 100vh / 1080));
-  width: 1920px;
-  height: 1080px;
-  transform-origin: top left;
-  transform: scale(var(--scale));
-  position: relative;
-}
-
-.background-cover {
-  position: absolute;
-  left: 0;
-  top: 380px;
-  width: 100%;
-  height: 286px;
-  background: rgba(154, 146, 126, 0.21);
+.playing-mat-outline-2-players .mat-stage {
+  grid-template-columns: 1fr;
+  grid-template-rows:
+    minmax(0, 0.9fr)
+    minmax(0, 0.5fr)
+    minmax(0, 1fr);
+  grid-template-areas:
+    "top"
+    "center"
+    "bottom";
 }
 
 .player-1-space {
-  width: 58.1875rem;
-  height: 25rem;
-  position: static;
-}
-
-.property-collection-zone {
-  width: 45.625rem;
-  height: 25rem;
-  position: static;
-}
-
-.property-collection {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 45.625rem;
-  height: 25rem;
-  position: absolute;
-  left: 43.8125rem;
-  top: 42.125rem;
-}
-
-.money-collection-bank {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 9.375rem;
-  height: 15rem;
-  position: absolute;
-  left: 31.25rem;
-  top: 47rem;
-  overflow: hidden;
-}
-
-.bank-pile {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.875rem;
-  font-weight: 400;
-  position: absolute;
-  left: 0.4375rem;
-  top: 5.25rem;
-  width: 8.9375rem;
-  height: 4.5rem;
-  -webkit-text-stroke: 0.0625rem #000000;
+  grid-area: bottom;
+  flex-direction: row;
 }
 
 .player-2-space {
-  width: 58.5625rem;
-  height: 23.25rem;
-  position: static;
+  grid-area: top;
+  flex-direction: row-reverse;
 }
 
-.player-2-property-collection-zone {
-  width: 45.625rem;
-  height: 23.25rem;
-  position: static;
+.center-pile {
+  grid-area: center;
 }
 
-.property-collection2 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 45.625rem;
-  height: 23.25rem;
-  position: absolute;
-  left: 77.25rem;
-  top: 23.4375rem;
-  transform-origin: 0 0;
-  transform: rotate(-180deg) scale(1, 1);
-}
-
-.player-2-money-collection-bank {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 9.375rem;
-  height: 15rem;
-  position: absolute;
-  left: 90.1875rem;
-  top: 15.4375rem;
-  transform-origin: 0 0;
-  transform: rotate(-180deg) scale(1, 1);
-  overflow: hidden;
-}
-
-.bank-pile2 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.875rem;
-  font-weight: 400;
-  position: absolute;
-  left: 0.25rem;
-  top: 5.6875rem;
-  width: 8.9375rem;
-  height: 4.5rem;
-  -webkit-text-stroke: 0.0625rem #000000;
-}
-
-/* thumbnails for rendered bank/property cards */
-.bank-cards img,
-.bank-card {
-  width: 5rem;
-  height: 7rem;
-  object-fit: cover;
-  border: 2px solid rgba(0,0,0,0.12);
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-}
-
-/* Property set layout: columns that are 2 cards tall (2 rows). Each column stacks cards slightly to show multiple cards in a set. */
-.property-set {
-  margin-bottom: 0.5rem;
-  position: relative;
-  overflow: hidden; /* contain cards inside the set box */
-}
-
-.property-set-cards {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  padding: 0.25rem;
-  /* allow columns to wrap if too many */
-  flex-wrap: wrap;
-  max-width: 100%;
-}
-
-.property-col {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  width: 5.25rem; /* column width equals card width */
-  align-items: center;
-}
-
-.prop-card {
-  width: 5.25rem; /* slightly larger for readability */
-  height: 7.5rem;
-  object-fit: cover;
-  border: 2px solid rgba(0,0,0,0.12);
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-  transform-origin: top left;
-  transition: transform 120ms ease, left 120ms ease, top 120ms ease;
-  position: relative;
-  z-index: 1;
-}
-
-/* offset the bottom card slightly to indicate stacking */
-.prop-card-bottom {
-  margin-top: -1.15rem; /* negative to overlap under the top card */
-  z-index: 0;
-  transform: scale(0.98);
-}
-
-/* small badge that shows the number of cards in the set */
-.set-count-badge {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  min-width: 1.6rem;
-  height: 1.6rem;
-  padding: 0 0.25rem;
-  background: rgba(0,0,0,0.75);
-  color: #fff;
-  font-size: 0.85rem;
-  line-height: 1.6rem;
-  text-align: center;
-  border-radius: 0.4rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-  z-index: 30;
-}
-
-/* ensure the property collection region clips overflow so cards never escape */
-.property-collection,
-.property-collection2 {
-  overflow: hidden;
+.player-1-space .property-collection,
+.player-2-space .property-collection {
+  min-height: clamp(110px, 22vh, 320px);
 }

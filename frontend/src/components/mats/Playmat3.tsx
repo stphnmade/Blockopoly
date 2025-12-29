@@ -1,106 +1,159 @@
-/* src/components/mats/Playmat3.tsx */
 import React, { useState } from "react";
-import { createPortal } from "react-dom";
+import type { PlaymatProps } from "./Playmat2";
+import PropertySetGrid from "../properties/PropertySetGrid";
+import { buildPlayerPropertyGridVM } from "../../lib/adapters/buildPlayerPropertyGridVM";
 
-/* ─── assets ───────────────────────────────────────────────────────── */
-import backdrop from "@/assets/Backdrop.svg"; // your 3-player backdrop
-import drawPileImg from "@/assets/cards/card-back.svg";
-import discard1 from "@/assets/cards/action-birthday.svg";
-import discard2 from "@/assets/cards/action-dealbreaker.svg";
-import discard3 from "@/assets/cards/action-debt-collector.svg";
+import backdrop from "@/assets/Backdrop.svg";
 
-/* ─── styles ───────────────────────────────────────────────────────── */
 import "@/components/mats/mat_styles/playmat_shared.css";
 import "./mat_styles/Playmat3.css";
 
-import { PLAYER_ID_KEY } from "../../constants/constants";
-
 type PlayerKey = "p1" | "p2" | "p3";
 
-const Playmat3: React.FC = () => {
-  const [openHandFor, setOpenHandFor] = useState<PlayerKey | null>(null);
+const Playmat3: React.FC<PlaymatProps> = ({
+  layout,
+  myPID,
+  names,
+  discardImages = [],
+  playerCardMap,
+  cardImageForId,
+}) => {
+  const pidMap: Record<PlayerKey, string> = {
+    p1: layout.p1 ?? "",
+    p2: layout.p2 ?? "",
+    p3: layout.p3 ?? "",
+  };
 
-  const myPID = sessionStorage.getItem(PLAYER_ID_KEY) ?? "";
-  // TODO: wire up real IDs from your lobby/game store
-  const pidMap: Record<PlayerKey, string> = { p1: "p1", p2: "p2", p3: "p3" };
+  const [bankOpen, setBankOpen] = useState(false);
+  const myBank = playerCardMap?.[myPID]?.bank;
+  const myBankImages = myBank?.images ?? [];
+  const myBankTotal = myBank?.total ?? 0;
+  const myBankCount = myBank?.count ?? 0;
 
-  const openHand = (pk: PlayerKey) => () => setOpenHandFor(pk);
-  const closeHand = () => setOpenHandFor(null);
+  const lastThree = discardImages.slice(-3);
+  const [d1, d2, d3] = [
+    lastThree[0] ?? null,
+    lastThree[1] ?? null,
+    lastThree[2] ?? null,
+  ];
+
+  const nameFor = (pid?: string) => (pid && names[pid]) || "Opponent";
+
+  const openMyBank = () => {
+    if (!myPID || !myBank) return;
+    setBankOpen(true);
+  };
+
+  const handleBankKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    canOpen: boolean
+  ) => {
+    if (!canOpen) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openMyBank();
+    }
+  };
+
+  const renderBank = (pid: string) => {
+    const bank = playerCardMap?.[pid]?.bank;
+    const canOpen = pid === myPID;
+    return (
+      <div className="money-collection-bank">
+        <div
+          className="bank-pile"
+          role={canOpen ? "button" : undefined}
+          tabIndex={canOpen ? 0 : -1}
+          onClick={canOpen ? openMyBank : undefined}
+          onKeyDown={(event) => handleBankKeyDown(event, canOpen)}
+          aria-label={`${nameFor(pid)} bank`}
+        >
+          <div className="bank-summary" aria-hidden>
+            <div className="bank-total">{bank?.total ?? 0}M</div>
+            <div className="bank-count">{bank?.count ?? 0} cards</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderProperties = (
+    pid: string,
+    seat: PlayerKey,
+    orientation: "me" | "opponent"
+  ) => {
+    const entry = playerCardMap?.[pid];
+    return (
+      <div className="property-collection-zone" aria-label={`${nameFor(pid)} property collection`}>
+        <div className="property-collection" id={`${seat}-properties`}>
+          <PropertySetGrid
+            sets={buildPlayerPropertyGridVM(entry?.properties ?? {}, cardImageForId).sets}
+            enableDnD={pid === myPID}
+            onOpenSet={() => {}}
+            orientation={orientation}
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="playing-mat-outline-3-players">
-      <img className="backdrop" src={backdrop} alt="3-Player Backdrop" />
+    <div className="playing-mat-outline-3-players" data-my-pid={myPID}>
+      <img className="backdrop" src={backdrop} alt="3-player backdrop" />
 
-      {/* ── DRAW PILE ─────────────────────────────────────────────── */}
-      <div className="draw-pile">
-        <div className="deck">
-          <img className="deck-top" src={drawPileImg} alt="Draw pile" />
+      <div className="mat-stage">
+        <div className="player-1-space">
+          {renderProperties(pidMap.p1, "p1", pidMap.p1 === myPID ? "me" : "opponent")}
+          {renderBank(pidMap.p1)}
+        </div>
+
+        <div className="player-2-space">
+          {renderProperties(pidMap.p2, "p2", "opponent")}
+          {renderBank(pidMap.p2)}
+        </div>
+
+        <div className="player-3-space">
+          {renderProperties(pidMap.p3, "p3", "opponent")}
+          {renderBank(pidMap.p3)}
+        </div>
+
+        <div className="center-pile" aria-label="discard pile">
+          <div className="discard-pile">
+            {d1 && <img className="card-1" src={d1} alt="" aria-hidden />}
+            {d2 && <img className="card-2" src={d2} alt="" aria-hidden />}
+            {d3 && <img className="card-3" src={d3} alt="Most recent discard" />}
+          </div>
         </div>
       </div>
 
-      {/* ── DISCARD PILE ─────────────────────────────────────────── */}
-      <div className="discard-pile" id="discard-pile">
-        <img className="card-1" src={discard1} alt="" aria-hidden />
-        <img className="card-2" src={discard2} alt="" aria-hidden />
-        <img className="card-3" src={discard3} alt="" aria-hidden />
-        <div className="discard-pile2"></div>
-      </div>
-
-      {/* ── PLAYER 1 ─────────────────────────────────────────────── */}
-      <div className="player-1-space">
-        <div className="money-collection-bank">
-          <div className="bank-pile" id="p1-bank"></div>
-          {myPID === pidMap.p1 && (
-            <button className="hand-toggle" onClick={openHand("p1")}>
-              Hand
-            </button>
-          )}
-        </div>
-        <div className="property-collection" id="p1-properties" />
-      </div>
-
-      {/* ── PLAYER 2 ─────────────────────────────────────────────── */}
-      <div className="player-2-space">
-        <div className="money-collection-bank2">
-          <div className="bank-pile" id="p2-bank"></div>
-          {myPID === pidMap.p2 && (
-            <button className="hand-toggle" onClick={openHand("p2")}>
-              Hand
-            </button>
-          )}
-        </div>
-        <div className="property-collection3" id="p2-properties" />
-      </div>
-
-      {/* ── PLAYER 3 ─────────────────────────────────────────────── */}
-      <div className="player-3-space">
-        <div className="money-collection-bank2">
-          <div className="bank-pile" id="p3-bank"></div>
-          {myPID === pidMap.p3 && (
-            <button className="hand-toggle" onClick={openHand("p3")}>
-              Hand
-            </button>
-          )}
-        </div>
-        <div className="property-collection3" />
-      </div>
-
-      {/* ── HAND MODAL ───────────────────────────────────────────── */}
-      {openHandFor &&
-        myPID === pidMap[openHandFor] &&
-        createPortal(
-          <div className="hand-modal" onClick={closeHand}>
-            <div
-              className="hand-modal-inner"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2>Your hand</h2>
-              {/* TODO: render actual cards here */}
-              <button onClick={closeHand}>Close</button>
+      {bankOpen && (
+        <div className="bank-overlay" role="dialog" aria-modal="true">
+          <div className="bank-modal">
+            <div className="bank-modal-header">
+              <div>
+                <div className="bank-modal-title">Your Bank</div>
+                <div className="bank-modal-subtitle">
+                  Total {myBankTotal}M in {myBankCount} cards.
+                </div>
+              </div>
+              <button type="button" className="bank-close" onClick={() => setBankOpen(false)}>
+                Close
+              </button>
             </div>
-          </div>,
-          document.body
-        )}
+            <div className="bank-card-grid">
+              {myBankImages.length === 0 ? (
+                <div className="bank-empty">No money cards in bank.</div>
+              ) : (
+                myBankImages.map((src, idx) => (
+                  <div key={`bank-${idx}`} className="bank-card">
+                    <img src={src} alt="Money card" draggable={false} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

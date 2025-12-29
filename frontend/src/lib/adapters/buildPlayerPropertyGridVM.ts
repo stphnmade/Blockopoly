@@ -1,45 +1,69 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { PlayerPropertyGridVM, PropertySetVM, CardVM } from "../../types/viewmodels";
 
-// Map of canonical set sizes for completion rules
-const SET_SIZES: Record<string, number> = {
-  "DARK_BLUE": 2,
-  "GREEN": 3,
-  "BROWN": 2,
-  "LIGHT_BLUE": 3,
-  "MAGENTA": 3,
-  "ORANGE": 3,
-  "RED": 3,
-  "YELLOW": 3,
-  "BLACK": 4, // railroad
-  "MINT": 2, // utility
+type ColorMeta = {
+  label: string;
+  token: string;
+  required: number;
+  rentTiers: number[];
+};
+
+const COLOR_META: Record<string, ColorMeta> = {
+  BROWN: { label: "Brown", token: "#b08968", required: 2, rentTiers: [1, 2] },
+  TURQOUISE: { label: "Light Blue", token: "#7dd3fc", required: 3, rentTiers: [1, 2, 3] },
+  MAGENTA: { label: "Magenta", token: "#f472b6", required: 3, rentTiers: [1, 2, 4] },
+  ORANGE: { label: "Orange", token: "#fb923c", required: 3, rentTiers: [1, 3, 5] },
+  RED: { label: "Red", token: "#ef4444", required: 3, rentTiers: [2, 3, 6] },
+  YELLOW: { label: "Yellow", token: "#facc15", required: 3, rentTiers: [2, 4, 6] },
+  GREEN: { label: "Green", token: "#22c55e", required: 3, rentTiers: [2, 4, 7] },
+  BLUE: { label: "Dark Blue", token: "#1e3a8a", required: 2, rentTiers: [3, 8] },
+  RAILROAD: { label: "Railroad", token: "#0f172a", required: 4, rentTiers: [1, 2, 3, 4] },
+  UTILITY: { label: "Utility", token: "#34d399", required: 2, rentTiers: [1, 2] },
+};
+
+const COLOR_ALIASES: Record<string, string> = {
+  DARK_BLUE: "BLUE",
+  LIGHT_BLUE: "TURQOUISE",
+  BLACK: "RAILROAD",
+  MINT: "UTILITY",
 };
 
 function canonicalKeyForSetName(name: string) {
-  // normalize backend set id/name to an uppercase canonical key
   return (name || "UNKNOWN").toString().toUpperCase();
 }
 
-function computeIsComplete(key: string, cards: CardVM[]) {
-  const k = canonicalKeyForSetName(key);
-  const need = SET_SIZES[k];
-  if (!need) return false;
-  return cards.length >= need;
+function normalizeColorKey(value?: string | null) {
+  const key = canonicalKeyForSetName(value || "");
+  return COLOR_ALIASES[key] ?? key;
 }
 
-export function buildPlayerPropertyGridVM(playerStateOrProperties: any): PlayerPropertyGridVM {
+function computeIsComplete(required: number | undefined, cardCount: number, isCompleteFlag?: boolean) {
+  if (typeof isCompleteFlag === "boolean") return isCompleteFlag;
+  if (!required) return false;
+  return cardCount >= required;
+}
+
+function computeRentValue(meta: ColorMeta | undefined, cardCount: number, developmentValue: number) {
+  if (!meta) return developmentValue;
+  const cappedCount = Math.min(cardCount, meta.required);
+  if (cappedCount <= 0) return developmentValue;
+  const tier = meta.rentTiers[cappedCount - 1] ?? 0;
+  return tier + developmentValue;
+}
+
+export function buildPlayerPropertyGridVM(
+  playerStateOrProperties: any,
+  cardImageForId?: (id: number) => string
+): PlayerPropertyGridVM {
   const sets: PropertySetVM[] = [];
   if (!playerStateOrProperties) return { sets: [], overflow: [] };
 
-  // If the input is the lightweight map produced by PlayScreen.playerCardMap (setId -> string[])
   let rawMap: Record<string, any> | null = null;
   if (typeof playerStateOrProperties === "object" && !Array.isArray(playerStateOrProperties)) {
-    // has propertyCollection? use that shape
     if ((playerStateOrProperties as any).propertyCollection) {
       const pc = (playerStateOrProperties as any).propertyCollection;
       rawMap = pc.collection ? pc.collection : pc;
     } else {
-      // assume it's already a map of setId -> array (strings or server card objects)
       rawMap = playerStateOrProperties as Record<string, any>;
     }
   }
@@ -47,42 +71,80 @@ export function buildPlayerPropertyGridVM(playerStateOrProperties: any): PlayerP
 
   for (const setId of Object.keys(rawMap)) {
     const val = rawMap[setId];
-    // If value is array of strings (asset URLs), convert accordingly
     let cardArr: any[] = [];
     if (Array.isArray(val) && val.length > 0 && typeof val[0] === "string") {
-      cardArr = (val as string[]).map((url, i) => ({ id: `u${i}`, image: url, name: `Property` }));
+      cardArr = (val as string[]).map((url, i) => ({ id: `u${i}`, image: url, name: "Property" }));
     } else if (Array.isArray(val)) {
       cardArr = val;
     } else if (val && Array.isArray(val.properties)) {
       cardArr = val.properties;
     }
 
-    const cards: CardVM[] = cardArr.map((c: any, idx: number) => ({
-      id: String((c && (c as any).id) ?? `x${idx}`),
-      name: (c && (c as any).name) ? String((c as any).name) : `#${(c && (c as any).id) ?? idx}`,
-      imageUrl: (c && (c as any).image) ? String((c as any).image) : (typeof c === "string" ? c : undefined),
-      setColors: (c && (c as any).colors) ? (c as any).colors : [],
-      value: (c && (c as any).value) ? Number((c as any).value) : undefined,
-    }));
+    const setColor = val?.color ?? null;
+    const colorKey = normalizeColorKey(setColor || setId);
+    const meta = COLOR_META[colorKey];
+    const requiredCount = meta?.required;
 
-    const key = canonicalKeyForSetName(setId);
+    const cards: CardVM[] = cardArr.map((c: any, idx: number) => {
+      const idValue =
+        typeof c === "number" || typeof c === "string"
+          ? c
+          : (c && (c as any).id) ?? `x${idx}`;
+      const imageFromCard = (c && (c as any).image)
+        ? String((c as any).image)
+        : (c && (c as any).imageUrl) ? String((c as any).imageUrl) : undefined;
+      const numericId =
+        typeof idValue === "number"
+          ? idValue
+          : typeof idValue === "string" && /^\\d+$/.test(idValue)
+            ? Number(idValue)
+            : undefined;
+      const resolvedById =
+        typeof numericId === "number" ? cardImageForId?.(numericId) : undefined;
+      const stringUrl =
+        typeof c === "string" && !/^\\d+$/.test(c) ? c : undefined;
+      const imageUrl = resolvedById ?? imageFromCard ?? stringUrl;
+      const colors = (c && (c as any).colors) ? (c as any).colors : [];
+      const value = (c && typeof (c as any).value === "number") ? Number((c as any).value) : undefined;
+      return {
+        id: String(idValue),
+        name: (c && (c as any).name) ? String((c as any).name) : `#${idValue ?? idx}`,
+        imageUrl,
+        setColors: colors,
+        value,
+        isWild: Array.isArray(colors) && colors.length > 1,
+        assignedColor: setColor ?? null,
+      };
+    });
+
+    const developmentValue =
+      (val && typeof val.house?.value === "number" ? val.house.value : 0) +
+      (val && typeof val.hotel?.value === "number" ? val.hotel.value : 0);
+    const currentCount = cards.length;
+    const isComplete = computeIsComplete(requiredCount, currentCount, val?.isComplete);
+    const rentValue = computeRentValue(meta, currentCount, developmentValue);
+    const overage = requiredCount && currentCount > requiredCount ? currentCount - requiredCount : 0;
     const vm: PropertySetVM = {
-      key,
-      displayName: setId.toString(),
-      colorToken: undefined,
+      key: String(setId),
+      colorKey,
+      displayName: meta?.label ?? setId.toString(),
+      colorToken: meta?.token,
       cards,
-      isComplete: computeIsComplete(key, cards),
+      isComplete,
+      requiredCount,
+      currentCount,
+      rentValue,
+      overage,
     };
     sets.push(vm);
   }
 
-  // sort as requested: complete first, size desc, color priority, alphabetical
-  const COLOR_PRIORITY = ["RED","BLUE","GREEN","YELLOW","ORANGE","MAGENTA","LIGHT_BLUE","BROWN","BLACK","MINT"];
+  const COLOR_PRIORITY = ["RED","BLUE","GREEN","YELLOW","ORANGE","MAGENTA","TURQOUISE","BROWN","RAILROAD","UTILITY"];
   sets.sort((a, b) => {
     if (a.isComplete !== b.isComplete) return a.isComplete ? -1 : 1;
     if (b.cards.length !== a.cards.length) return b.cards.length - a.cards.length;
-    const ai = COLOR_PRIORITY.indexOf(a.key as string);
-    const bi = COLOR_PRIORITY.indexOf(b.key as string);
+    const ai = COLOR_PRIORITY.indexOf((a.colorKey ?? a.key) as string);
+    const bi = COLOR_PRIORITY.indexOf((b.colorKey ?? b.key) as string);
     if (ai !== bi) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
     return a.displayName.localeCompare(b.displayName);
   });

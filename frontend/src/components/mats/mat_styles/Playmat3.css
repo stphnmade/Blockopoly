@@ -1,113 +1,41 @@
-/* .playing-mat-3-players,
-.playing-mat-3-players * {
-  box-sizing: border-box;
-}
-.playing-mat-3-players {
-  background: transparent;
-  height: 67.5rem;
-  position: relative;
-} */
-
 .playing-mat-outline-3-players {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #e5e5e5;
+  background: transparent;
+}
+
+.playing-mat-outline-3-players .mat-stage {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  grid-template-rows:
+    minmax(0, 0.8fr)
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+  grid-template-areas:
+    "left center right"
+    "left center right"
+    "bottom bottom bottom";
 }
 
 .player-1-space {
-  width: 58.5625rem;
-  height: 20.4375rem;
-  position: absolute;
-  left: 40.6875rem;
-  top: 47.0625rem;
-}
-.money-collection-bank {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.15375rem;
-  width: 30.58%;
-  height: 87.63%;
-  position: absolute;
-  right: 69.42%;
-  left: 0%;
-  bottom: 6.11%;
-  top: 6.26%;
-  overflow: hidden;
-}
-.bank-pile {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.5350877046585083rem;
-  font-weight: 400;
-  position: absolute;
-  left: 5.270625rem;
-  top: 7.1125rem;
-  width: 7.3175rem;
-  height: 3.684375rem;
-  -webkit-text-stroke: 0.051169589161872864rem #000000;
-}
-.property-collection-zone {
-  position: absolute;
-  inset: 0;
-}
-.property-collection {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.15375rem;
-  width: 62.97%;
-  height: 97.86%;
-  position: absolute;
-  right: 2.08%;
-  left: 34.95%;
-  bottom: 2.14%;
-  top: 0%;
+  grid-area: bottom;
+  flex-direction: row;
 }
 
 .player-2-space {
-  width: 59.125rem;
-  height: 20.4375rem;
-  position: absolute;
-  left: 115rem;
-  top: 63rem;
-  transform-origin: 0 0;
-  transform: rotate(-90deg) scale(1, 1);
-}
-.money-collection-bank2 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.15375rem;
-  width: 17.909375rem;
-  height: 17.909375rem;
-  position: absolute;
-  left: 0rem;
-  top: 1.279375rem;
-  overflow: hidden;
-}
-.property-collection3 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.15375rem;
-  width: 36.875rem;
-  height: 20rem;
-  position: absolute;
-  left: 20.468125rem;
-  top: 0rem;
+  grid-area: right;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
 .player-3-space {
-  width: 59.5625rem;
-  height: 20.4375rem;
-  position: absolute;
-  left: 22.4375rem;
-  top: 5.5rem;
-  transform-origin: 0 0;
-  transform: rotate(90deg) scale(1, 1);
+  grid-area: left;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.center-pile {
+  grid-area: center;
+}
+
+.player-2-space .property-collection,
+.player-3-space .property-collection {
+  min-height: clamp(100px, 18vh, 220px);
 }

@@ -6,14 +6,21 @@ export interface CardVM {
   imageUrl?: string;
   setColors: string[];
   value?: number;
+  isWild?: boolean;
+  assignedColor?: string | null;
 }
 
 export interface PropertySetVM {
   key: SetKey;
+  colorKey?: string;
   displayName: string;
   colorToken?: string;
   cards: CardVM[];
   isComplete: boolean;
+  requiredCount?: number;
+  currentCount?: number;
+  rentValue?: number;
+  overage?: number;
 }
 
 export interface PlayerPropertyGridVM {

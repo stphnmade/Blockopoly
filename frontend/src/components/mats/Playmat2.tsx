@@ -1,8 +1,8 @@
 // Playmat2.tsx
 /* src/components/mats/Playmat2.tsx */
 //  has the 2-player layout and logic for tracking last played card in discard
-import React from "react";
-// createPortal removed — overlay now handles hand
+import React, { useState } from "react";
+// createPortal removed - overlay now handles hand
 import { DroppableBind } from "../DropZones";
 import { useDroppable } from "@dnd-kit/core";
 
@@ -18,11 +18,15 @@ import { buildPlayerPropertyGridVM } from "../../lib/adapters/buildPlayerPropert
 
 /** Keep this in sync with PlayScreen's type */
 export type PlaymatProps = {
-  layout: Partial<Record<"p1" | "p2", string>>; // seat -> playerId
+  layout: Partial<Record<"p1" | "p2" | "p3" | "p4" | "p5", string>>; // seat -> playerId
   myPID: string;
   names: Record<string, string>;
   discardImages?: string[]; // newest last
-  playerCardMap?: Record<string, { bank: string[]; properties: Record<string, string[]> }>;
+  playerCardMap?: Record<
+    string,
+    { bank: { images: string[]; total: number; count: number }; properties: unknown }
+  >;
+  cardImageForId?: (id: number) => string;
 };
 
 type PlayerKey = "p1" | "p2";
@@ -33,6 +37,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
   names,
   discardImages = [],
   playerCardMap,
+  cardImageForId,
 }) => {
   // hand modal removed; overlay shows the hand
   // pull the true pids from layout
@@ -41,7 +46,33 @@ const Playmat2: React.FC<PlaymatProps> = ({
     p2: layout.p2 ?? "",
   };
 
-  // hand modal removed
+  const [bankOpen, setBankOpen] = useState(false);
+  const myBank = playerCardMap?.[myPID]?.bank;
+  const myBankImages = myBank?.images ?? [];
+  const myBankTotal = myBank?.total ?? 0;
+  const myBankCount = myBank?.count ?? 0;
+  const p1Bank = playerCardMap?.[pidMap.p1]?.bank;
+  const p2Bank = playerCardMap?.[pidMap.p2]?.bank;
+  const p1Props = playerCardMap?.[pidMap.p1]?.properties ?? {};
+  const p2Props = playerCardMap?.[pidMap.p2]?.properties ?? {};
+  const canOpenP1Bank = pidMap.p1 === myPID;
+  const canOpenP2Bank = pidMap.p2 === myPID;
+
+  const openMyBank = () => {
+    if (!myPID || !myBank) return;
+    setBankOpen(true);
+  };
+
+  const handleBankKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    canOpen: boolean
+  ) => {
+    if (!canOpen) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openMyBank();
+    }
+  };
 
   // ---- dnd-kit droppable zones (per seat) ---------------------------
   const { setNodeRef: setP1BankRef, isOver: p1BankOver } = useDroppable({
@@ -89,9 +120,11 @@ const Playmat2: React.FC<PlaymatProps> = ({
           >
             <div className="property-collection" id="p1-properties">
               <DroppableBind zoneId="p1-properties" />
-              {playerCardMap && playerCardMap[pidMap.p1] && (
-                <PropertySetGrid sets={buildPlayerPropertyGridVM(playerCardMap[pidMap.p1].properties).sets} enableDnD={true} onOpenSet={() => {}} />
-              )}
+              <PropertySetGrid
+                sets={buildPlayerPropertyGridVM(p1Props, cardImageForId).sets}
+                enableDnD={true}
+                onOpenSet={() => {}}
+              />
             </div>
           </div>
 
@@ -101,17 +134,17 @@ const Playmat2: React.FC<PlaymatProps> = ({
               id="p1-bank"
               ref={setP1BankRef}
               aria-label={`${nameFor(pidMap.p1)} bank`}
+              role={canOpenP1Bank ? "button" : undefined}
+              tabIndex={canOpenP1Bank ? 0 : -1}
+              onClick={canOpenP1Bank ? openMyBank : undefined}
+              onKeyDown={(event) => handleBankKeyDown(event, canOpenP1Bank)}
             >
               <DroppableBind zoneId="p1-bank" />
-            </div>
-            {/* render bank cards if provided */}
-            {playerCardMap && playerCardMap[pidMap.p1] && (
-              <div className="bank-cards mt-2 flex gap-1 flex-wrap" aria-hidden>
-                {playerCardMap[pidMap.p1].bank.map((src: string, i: number) => (
-                  <img key={`p1-bank-${i}`} src={src} className="bank-card" alt="bank card" draggable={false} />
-                ))}
+              <div className="bank-summary" aria-hidden>
+                <div className="bank-total">{p1Bank?.total ?? 0}M</div>
+                <div className="bank-count">{p1Bank?.count ?? 0} cards</div>
               </div>
-            )}
+            </div>
             {/* hand button removed - overlay shows cards */}
           </div>
         </div>
@@ -127,9 +160,12 @@ const Playmat2: React.FC<PlaymatProps> = ({
           >
             <div className="property-collection2" id="p2-properties">
               <DroppableBind zoneId="p2-properties" />
-              {playerCardMap && playerCardMap[pidMap.p2] && (
-                <PropertySetGrid sets={buildPlayerPropertyGridVM(playerCardMap[pidMap.p2].properties).sets} enableDnD={false} onOpenSet={() => {}} orientation="opponent" />
-              )}
+              <PropertySetGrid
+                sets={buildPlayerPropertyGridVM(p2Props, cardImageForId).sets}
+                enableDnD={false}
+                onOpenSet={() => {}}
+                orientation="opponent"
+              />
             </div>
           </div>
 
@@ -139,17 +175,18 @@ const Playmat2: React.FC<PlaymatProps> = ({
               id="p2-bank"
               ref={setP2BankRef}
               aria-label={`${nameFor(pidMap.p2)} bank`}
+              role={canOpenP2Bank ? "button" : undefined}
+              tabIndex={canOpenP2Bank ? 0 : -1}
+              onClick={canOpenP2Bank ? openMyBank : undefined}
+              onKeyDown={(event) => handleBankKeyDown(event, canOpenP2Bank)}
             >
               <DroppableBind zoneId="p2-bank" />
+              <div className="bank-summary" aria-hidden>
+                <div className="bank-total">{p2Bank?.total ?? 0}M</div>
+                <div className="bank-count">{p2Bank?.count ?? 0} cards</div>
+              </div>
             </div>
             {/* hand button removed - overlay shows cards */}
-              {playerCardMap && playerCardMap[pidMap.p2] && (
-                <div className="bank-cards mt-2 flex gap-1 flex-wrap" aria-hidden>
-                  {playerCardMap[pidMap.p2].bank.map((src: string, i: number) => (
-                    <img key={`p2-bank-${i}`} src={src} className="bank-card" alt="bank card" draggable={false} />
-                  ))}
-                </div>
-              )}
           </div>
         </div>
 
@@ -168,7 +205,36 @@ const Playmat2: React.FC<PlaymatProps> = ({
         </div>
       </div>
 
-  {/* hand modal removed — overlay serves as the hand */}
+      {bankOpen && (
+        <div className="bank-overlay" role="dialog" aria-modal="true">
+          <div className="bank-modal">
+            <div className="bank-modal-header">
+              <div>
+                <div className="bank-modal-title">Your Bank</div>
+                <div className="bank-modal-subtitle">
+                  Total {myBankTotal}M in {myBankCount} cards.
+                </div>
+              </div>
+              <button type="button" className="bank-close" onClick={() => setBankOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="bank-card-grid">
+              {myBankImages.length === 0 ? (
+                <div className="bank-empty">No money cards in bank.</div>
+              ) : (
+                myBankImages.map((src, idx) => (
+                  <div key={`bank-${idx}`} className="bank-card">
+                    <img src={src} alt="Money card" draggable={false} />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+  {/* hand modal removed - overlay serves as the hand */}
     </div>
   );
 };

@@ -26,7 +26,7 @@ import "../style/PlayScreen.css";
 import { cardAssetMap } from "../utils/cardmapping";
 const cardBack = new URL("../assets/cards/card-back.svg", import.meta.url).href;
 
-/** Mat components (2–5 players) */
+/** Mat components (2-5 players) */
 export type PlaymatProps = {
   layout: Partial<Record<"p1" | "p2" | "p3" | "p4" | "p5", string>>;
   myPID: string;
@@ -34,8 +34,12 @@ export type PlaymatProps = {
   discardImages?: string[];
   playerCardMap?: Record<
     string,
-    { bank: string[]; properties: Record<string, string[]> }
+    {
+      bank: { images: string[]; total: number; count: number };
+      properties: unknown;
+    }
   >;
+  cardImageForId?: (id: number) => string;
 };
 const Playmat2 = lazy(
   () => import("../components/mats/Playmat2")
@@ -493,7 +497,12 @@ const PlayScreen: React.FC = () => {
   const orderedPids = (
     game?.playerOrder?.length ? game.playerOrder : lobbyPlayers.map((p) => p.id)
   ).slice(0, 5);
-  const playerCount = Math.max(2, Math.min(5, orderedPids.length || 2));
+  const rotatedPids = useMemo(() => {
+    if (!myPID || !orderedPids.includes(myPID)) return orderedPids;
+    const idx = orderedPids.indexOf(myPID);
+    return [...orderedPids.slice(idx), ...orderedPids.slice(0, idx)];
+  }, [myPID, orderedPids]);
+  const playerCount = Math.max(2, Math.min(5, rotatedPids.length || 2));
   const Mat = useMemo(
     () =>
       ({ 2: Playmat2, 3: Playmat3, 4: Playmat4, 5: Playmat5 }[playerCount] ||
@@ -504,11 +513,11 @@ const PlayScreen: React.FC = () => {
   const layout: PlaymatProps["layout"] = useMemo(() => {
     const seats = ["p1", "p2", "p3", "p4", "p5"] as const;
     const m: Partial<Record<(typeof seats)[number], string>> = {};
-    orderedPids.forEach((pid, i) => {
+    rotatedPids.forEach((pid, i) => {
       m[seats[i]] = pid;
     });
     return m;
-  }, [orderedPids]);
+  }, [rotatedPids]);
 
   // last 3 images; newest at the end
   const discardImages = useMemo(
@@ -517,23 +526,25 @@ const PlayScreen: React.FC = () => {
   );
 
   const playerCardMap = useMemo(() => {
-    const m: Record<string, { bank: string[]; properties: Record<string, string[]> }> = {};
+    const m: Record<
+      string,
+      { bank: { images: string[]; total: number; count: number }; properties: unknown }
+    > = {};
     if (!game?.playerState) return m;
     for (const pid of Object.keys(game.playerState)) {
       const ps = game.playerState[pid];
+      const bankCards = (ps.bank ?? []).filter((card) => card.type === "MONEY");
+      const bankTotal = bankCards.reduce(
+        (sum, card) => sum + (typeof card.value === "number" ? card.value : 0),
+        0
+      );
       m[pid] = {
-        bank: (ps.bank ?? []).map(assetForCard),
-        properties: Object.fromEntries(
-          // backend may send PropertyCollection wrapper { collection: { setId: PropertySet } }
-          // or directly a map of setId -> PropertySet/array. Normalize to the inner collection when present.
-          Object.entries((ps.propertyCollection && (ps.propertyCollection.collection ? (ps.propertyCollection as any).collection : ps.propertyCollection)) ?? {}).map(([setId, val]) => {
-            // val may be an array of ServerCard or an object with .properties array
-            const cardArr: ServerCard[] = Array.isArray(val)
-              ? (val as unknown as ServerCard[])
-              : (val && Array.isArray((val as any).properties) ? (val as any).properties : []);
-            return [setId, cardArr.map(assetForCard)];
-          })
-        ),
+        bank: {
+          images: bankCards.map(assetForCard),
+          total: bankTotal,
+          count: bankCards.length,
+        },
+        properties: { propertyCollection: ps.propertyCollection },
       };
     }
     return m;
@@ -1064,63 +1075,63 @@ const PlayScreen: React.FC = () => {
   }, []);
 
   return (
-    <div className="mat-stage">
+    <div className="play-screen">
+      {/* Top bar */}
+      <div className="play-topbar">
+        <div>
+          Room Code: <b>{roomCode || "-"}</b>
+        </div>
+        <div>
+          Room ID: <b>{roomId || "-"}</b>
+        </div>
+        <div>
+          You: <b>{myName || "You"}</b>
+        </div>
+        <div>
+          Turn: <b>{displayName(game?.playerAtTurn)}</b>
+        </div>
+        <div>
+          Draw pile: <b>{game?.drawPileSize ?? "-"}</b>
+        </div>
+        <div>
+          Plays left: <b>{playsLeft}</b>
+        </div>
+        <button
+          className="position-button"
+          onClick={openPositioning}
+          disabled={!isMyTurn || isDiscarding || myPropertySets.length === 0}
+        >
+          Position
+        </button>
+        <div
+          className={`ws-dot ${wsReady ? "on" : "off"}`}
+          title={wsReady ? "Connected" : "Reconnecting..."}
+        />
+      </div>
 
+      <div className="play-area">
         <Mat
           layout={layout}
           myPID={myPID}
           names={nameById}
           discardImages={discardImages}
           playerCardMap={playerCardMap}
+          cardImageForId={(id) => cardAssetMap[id] ?? cardBack}
         />
-
-        {/* Top bar */}
-        <div
-          className="play-topbar"
-        >
-          <div>
-            Room Code: <b>{roomCode || "—"}</b>
-          </div>
-          <div>
-            Room ID: <b>{roomId || "—"}</b>
-          </div>
-          <div>
-            You: <b>{myName || "You"}</b>
-          </div>
-          <div>
-            Turn: <b>{displayName(game?.playerAtTurn)}</b>
-          </div>
-          <div>
-            Draw pile: <b>{game?.drawPileSize ?? "-"}</b>
-          </div>
-          <div>
-            Plays left: <b>{playsLeft}</b>
-          </div>
-          <button
-            className="position-button"
-            onClick={openPositioning}
-            disabled={!isMyTurn || isDiscarding || myPropertySets.length === 0}
-          >
-            Position
-          </button>
-          <div
-            className={`ws-dot ${wsReady ? "on" : "off"}`}
-            title={wsReady ? "Connected" : "Reconnecting..."}
-          />
-        </div>
 
         {rentNotice && (
           <div className="rent-notice" role="status" aria-live="polite">
             {rentNotice.message}
           </div>
         )}
+      </div>
 
-    {/* Actions: the End Turn button is rendered as a portal into document.body
-      so it centers relative to the viewport (not the transformed .mat-stage) */}
+      {/* Actions: the End Turn button is rendered as a portal into document.body
+        so it centers relative to the viewport */}
 
-        {/* Hand */}
-        <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
-          <div className="mat-hand-row">
+      {/* Hand */}
+      <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
+        <div className="mat-hand-row">
             <div className="flex items-center gap-3 mr-2">
               <button
                 className="hand-collapse-btn"
