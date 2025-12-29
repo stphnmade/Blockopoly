@@ -22,7 +22,6 @@
   pointer-events: none;
   z-index: 0;
   background: #fff7e4;
-
 }
 
 .mat-stage {
@@ -51,7 +50,7 @@
 
 .property-collection-zone,
 .player-2-property-collection-zone {
-  flex: .5 1 auto;
+  flex: 0.5 1 auto;
   display: flex;
   min-width: 0;
 }
@@ -63,7 +62,7 @@
 .property-collection5,
 .property-collection6,
 .property-collection7 {
-  flex: .8 1 auto;
+  flex: 0.8 1 auto;
   width: 0%;
   max-width: 90em;
   border: 2px solid rgba(0, 0, 0, 0.7);
@@ -133,6 +132,7 @@
   align-items: center;
   justify-content: center;
   justify-self: center;
+  top: 50%;
   width: 100%;
   min-width: 0;
 }
@@ -157,7 +157,6 @@
   left: -10%;
   top: 6%;
   transform: rotate(-12deg);
-  opacity: 0.85;
 }
 
 .card-2 {
@@ -165,7 +164,6 @@
   left: 0;
   top: 0;
   transform: rotate(0deg);
-  opacity: 0.95;
 }
 
 .card-3 {
@@ -287,5 +285,7 @@
 }
 
 @media (max-height: 700px) {
-  .end-turn-button { bottom: 150px; }
+  .end-turn-button {
+    bottom: 150px;
+  }
 }

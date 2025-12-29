@@ -4,7 +4,7 @@
 }
 
 .prop-grid {
-  --card-w: clamp(24px, 2.6vw, 58px);
+  --card-w: clamp(28px, 3vw, 70px);
   --card-h: calc(var(--card-w) * 1.5);
   --stack-offset: clamp(5px, 0.7vw, 10px);
   --slot-max: clamp(72px, 10vw, 150px);
@@ -20,7 +20,7 @@
 }
 
 .prop-grid.me {
-  --card-w: clamp(28px, 3.2vw, 66px);
+  --card-w: clamp(32px, 3.6vw, 76px);
 }
 
 .prop-grid-empty {
@@ -203,4 +203,105 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.prop-probe-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 16, 0.75);
+  z-index: 1500;
+}
+
+.prop-probe-modal {
+  width: min(900px, 94vw);
+  max-height: 84vh;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #f8fafc;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.prop-probe-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.prop-probe-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.prop-probe-close {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.8);
+  color: #f8fafc;
+  cursor: pointer;
+}
+
+.prop-probe-body {
+  max-height: 60vh;
+  overflow: auto;
+  padding-top: 6px;
+}
+
+.prop-probe-empty {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.prop-probe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+.prop-probe-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.prop-probe-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  background: #020617;
+}
+
+.prop-probe-placeholder {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  background: linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.25),
+    rgba(148, 163, 184, 0.08)
+  );
+}
+
+.prop-probe-wild-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.7);
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
