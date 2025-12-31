@@ -2,6 +2,8 @@
 
 Card description:
 
+Card rules :
+
 - **Deal Breaker**: Steal a complete property set from any player, including any buildings. Place it in your collection.
 - **Just Say No!**: Block any action card played against you. This card can be used at any time, even on another Just Say No!
 - **Forced Deal**: Swap one of your properties with another player’s property of your choice. Both properties must be from incomplete sets.
