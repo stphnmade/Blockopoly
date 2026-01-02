@@ -36,7 +36,8 @@ suspend fun handlePayment(room: DealGame, gameState: GameState, playerId: String
     val receiverState = gameState.playerState[request.requester] ?: return gameState
 
     val (success, propertyDestinations, bankCards) = when (interaction.action) {
-        is RentRequestMessage -> payRent(gameState, playerId, request.requester, payment.payment, amountRequested)
+        is RentRequestMessage, is BirthdayMessage ->
+            payRent(gameState, playerId, request.requester, payment.payment, amountRequested)
         else -> pay(gameState, playerId, request.requester, payment.payment, amountRequested)
     }
     if (!success) return gameState

@@ -2,6 +2,7 @@ package com.gameservice.util
 
 import com.gameservice.DEVELOPMENT_ACTION_CARDS
 import com.gameservice.cardMapping
+import com.gameservice.models.ALL_COLOR_SET
 import com.gameservice.models.Card
 import com.gameservice.models.GameState
 
@@ -12,8 +13,8 @@ fun pay(gameState: GameState, giver: String, receiver: String, payment: List<Int
     val playerState = gameState.playerState[giver] ?: return PayResponse()
     val receiverPlayerState = gameState.playerState[receiver] ?: return PayResponse()
 
-    if (playerState.totalValue() <= amountRequested) {
-        if (playerState.getNumOfSellableCards() != paymentCards.size) return PayResponse()
+    if (playerState.totalValueExcludingWildcards() <= amountRequested) {
+        if (playerState.getNumOfSellableCardsExcludingWildcards() != paymentCards.size) return PayResponse()
     } else {
         if (paymentCards.sumOf { cardValueForPayment(it) ?: return PayResponse() } < amountRequested) return PayResponse()
     }
@@ -22,6 +23,7 @@ fun pay(gameState: GameState, giver: String, receiver: String, payment: List<Int
     paymentCards.forEach { card ->
         when (card) {
             is Card.Property -> {
+                if (isTenColorWild(card)) return PayResponse()
                 if (!playerState.isPropertyInCollection(card)) return PayResponse()
             }
             is Card.ActionCard -> {
@@ -76,7 +78,9 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
     val bankMoneyById = bankMoney.associateBy { it.id }
     val bankTotal = bankMoney.sumOf { it.value }
 
-    val propertyCards = playerState.propertyCollection.collection.values.flatMap { it.properties }
+    val propertyCards = playerState.propertyCollection.collection.values
+        .flatMap { it.properties }
+        .filterNot { isTenColorWild(it) }
     val propertyById = propertyCards.associateBy { it.id }
     val propertyTotal = propertyCards.sumOf { it.value ?: 0 }
     val totalValue = bankTotal + propertyTotal
@@ -135,4 +139,8 @@ private fun cardValueForPayment(card: Card): Int? {
         is Card.Property -> card.value ?: 0
         else -> card.value
     }
+}
+
+private fun isTenColorWild(card: Card.Property): Boolean {
+    return card.colors == ALL_COLOR_SET
 }

@@ -4,23 +4,35 @@
 }
 
 .prop-grid {
-  --card-w: clamp(28px, 3vw, 70px);
+  --card-w: clamp(1.8rem, 2.8vw, 3.8rem);
   --card-h: calc(var(--card-w) * 1.5);
-  --stack-offset: clamp(5px, 0.7vw, 10px);
-  --slot-max: clamp(72px, 10vw, 150px);
+  --stack-offset: clamp(0.25rem, 0.7vw, 0.6rem);
+  --slot-max: clamp(3.4rem, 8vw, 7.4rem);
+  --grid-rotate: 0deg;
+  --grid-scale: 1;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, var(--slot-max)));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   grid-auto-rows: minmax(0, 1fr);
-  gap: clamp(6px, 0.8vw, 10px);
+  gap: clamp(0.35rem, 0.8vw, 0.65rem);
   justify-content: center;
   align-content: center;
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  transform: rotate(var(--grid-rotate)) scale(var(--grid-scale));
+  transform-origin: center;
 }
 
-.prop-grid.me {
-  --card-w: clamp(32px, 3.6vw, 76px);
+.prop-grid.top {
+  --grid-rotate: 180deg;
+}
+.prop-grid.left {
+  --grid-rotate: -90deg;
+}
+.prop-grid.right {
+  --grid-rotate: 90deg;
 }
 
 .prop-grid-empty {
@@ -36,13 +48,13 @@
   border-radius: 12px;
   border: 1px solid var(--set-color, rgba(15, 23, 42, 0.3));
   background: rgba(255, 255, 255, 0.18);
-  padding: clamp(4px, 0.6vw, 8px);
+  padding: clamp(0.25rem, 0.6vw, 0.5rem);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   min-width: 0;
-  min-height: clamp(70px, 9vh, 140px);
+  min-height: clamp(3.2rem, 8vh, 7.2rem);
 }
 
 .prop-slot::before {
@@ -194,9 +206,6 @@
   font-size: 0.6rem;
 }
 
-.prop-grid.opponent .prop-slot {
-  background: rgba(255, 255, 255, 0.16);
-}
 
 @media (hover: none) {
   .prop-slot-info {

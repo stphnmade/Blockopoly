@@ -104,6 +104,7 @@ type Action =
   | { type: "PlayProperty"; id: number; color: Color }
   | { type: "Discard"; cardId: number }
   | { type: "PassGo"; id: number }
+  | { type: "Birthday"; id: number }
   | { type: "AcceptCharge"; payment: number[] }
   | { type: "JustSayNo"; ids: number[]; respondingTo?: string | null }
   | {
@@ -123,6 +124,8 @@ type Action =
       toColor?: string | null;
     };
 
+type ChargeKind = "RENT" | "BIRTHDAY";
+
 const GAME_API = import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
 const toWs = (base: string) =>
   base
@@ -134,6 +137,7 @@ const assetForCard = (c: ServerCard) =>
   !c || c.id === 999 ? cardBack : cardAssetMap[c.id] ?? cardBack;
 const MAX_HAND_SIZE = 7;
 const ALL_COLOR_COUNT = 10;
+const BIRTHDAY_PAYMENT_AMOUNT = 2;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
 
 /** Click-only hand card (drag removed) */
@@ -218,6 +222,7 @@ const PlayScreen: React.FC = () => {
     requesterId: string;
     amount: number;
     color?: string | null;
+    kind: ChargeKind;
   } | null>(null);
   const [rentBankSelection, setRentBankSelection] = useState<number[]>([]);
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
@@ -349,6 +354,30 @@ const PlayScreen: React.FC = () => {
           });
           return;
         }
+        if ((msg as any).type === "BIRTHDAY") {
+          const payload = msg as any;
+          const requester = payload.requester as string | undefined;
+          const isSelf = requester === myPID;
+          const message = isSelf
+            ? `You played It's My Birthday! Everyone pays ${BIRTHDAY_PAYMENT_AMOUNT}M.`
+            : `${displayName(requester)} played It's My Birthday! Everyone pays ${BIRTHDAY_PAYMENT_AMOUNT}M.`;
+          setRentNotice({ message });
+          if (rentNoticeTimer.current) {
+            clearTimeout(rentNoticeTimer.current);
+          }
+          rentNoticeTimer.current = setTimeout(() => {
+            setRentNotice(null);
+          }, 3200);
+          if (requester && requester !== myPID) {
+            setRentCharge({
+              requesterId: requester,
+              amount: BIRTHDAY_PAYMENT_AMOUNT,
+              color: null,
+              kind: "BIRTHDAY",
+            });
+          }
+          return;
+        }
         if ((msg as any).type === "RENT_REQUEST") {
           const payload = msg as any;
           const requester = payload.requester as string | undefined;
@@ -376,6 +405,7 @@ const PlayScreen: React.FC = () => {
               requesterId: requester ?? "",
               amount,
               color: rentColor ?? null,
+              kind: "RENT",
             });
           }
           return;
@@ -550,6 +580,7 @@ const PlayScreen: React.FC = () => {
     return m;
   }, [game?.playerState]);
 
+
   const myPropertySets = useMemo<PropertySetView[]>(() => {
     const ps = game?.playerState?.[myPID];
     if (!ps?.propertyCollection) return [];
@@ -590,6 +621,15 @@ const PlayScreen: React.FC = () => {
   const isRainbowCard = useCallback(
     (colors?: string[]) => (colors?.length ?? 0) >= ALL_COLOR_COUNT,
     []
+  );
+
+  const chargePropertyCards = useMemo(
+    () => myPropertyCards.filter((card) => !isRainbowCard(card.colors)),
+    [isRainbowCard, myPropertyCards]
+  );
+  const hasNonPayableWilds = useMemo(
+    () => myPropertyCards.some((card) => isRainbowCard(card.colors)),
+    [isRainbowCard, myPropertyCards]
   );
 
   const positioningTargets = useMemo(() => {
@@ -657,7 +697,10 @@ const PlayScreen: React.FC = () => {
 
   const rentAmountDue = rentCharge?.amount ?? 0;
   const rentBankTotal = myBankCards.reduce((sum, card) => sum + getCardValue(card), 0);
-  const rentPropertyTotal = myPropertyCards.reduce((sum, card) => sum + getCardValue(card), 0);
+  const rentPropertyTotal = chargePropertyCards.reduce(
+    (sum, card) => sum + getCardValue(card),
+    0
+  );
   const rentTotalValue = rentBankTotal + rentPropertyTotal;
 
   const rentBankSelected = new Set(rentBankSelection);
@@ -665,7 +708,7 @@ const PlayScreen: React.FC = () => {
   const rentBankSelectedTotal = myBankCards
     .filter((card) => rentBankSelected.has(card.id))
     .reduce((sum, card) => sum + getCardValue(card), 0);
-  const rentPropertySelectedTotal = myPropertyCards
+  const rentPropertySelectedTotal = chargePropertyCards
     .filter((card) => rentPropertySelected.has(card.id))
     .reduce((sum, card) => sum + getCardValue(card), 0);
   const rentSelectedTotal = rentBankSelectedTotal + rentPropertySelectedTotal;
@@ -675,8 +718,8 @@ const PlayScreen: React.FC = () => {
 
   const rentBankIds = useMemo(() => myBankCards.map((card) => card.id), [myBankCards]);
   const rentPropertyIds = useMemo(
-    () => myPropertyCards.map((card) => card.id),
-    [myPropertyCards]
+    () => chargePropertyCards.map((card) => card.id),
+    [chargePropertyCards]
   );
   const rentBankSelectionComplete =
     rentBankIds.length === rentBankSelection.length &&
@@ -733,6 +776,14 @@ const PlayScreen: React.FC = () => {
     setMenuCard(null);
     setColorChoices(null);
   };
+
+  const playBirthdaySelected = useCallback(() => {
+    if (!menuCard || !isMyTurn || playsLeft <= 0) return;
+    if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "BIRTHDAY") return;
+    wsSend({ type: "Birthday", id: menuCard.id });
+    setMenuCard(null);
+    setColorChoices(null);
+  }, [isMyTurn, menuCard, playsLeft, wsSend]);
 
   const playPropertySelected = (color?: string) => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
@@ -1016,26 +1067,30 @@ const PlayScreen: React.FC = () => {
     const rentInteraction = pending.find(
       (entry) =>
         entry?.awaitingResponseFrom === myPID &&
-        entry?.action?.type === "RENT_REQUEST"
+        (entry?.action?.type === "RENT_REQUEST" || entry?.action?.type === "BIRTHDAY")
     );
     if (!rentInteraction) {
       setRentCharge(null);
       return;
     }
     const action = rentInteraction.action ?? {};
+    const isBirthday = action.type === "BIRTHDAY";
     const next = {
       requesterId: action.requester ?? "",
-      amount:
-        typeof action.amount === "number"
+      amount: isBirthday
+        ? BIRTHDAY_PAYMENT_AMOUNT
+        : typeof action.amount === "number"
           ? action.amount
           : Number(action.amount ?? 0) || 0,
-      color: action.color ?? null,
+      color: isBirthday ? null : action.color ?? null,
+      kind: isBirthday ? "BIRTHDAY" : "RENT",
     };
     setRentCharge((prev) =>
       prev &&
       prev.requesterId === next.requesterId &&
       prev.amount === next.amount &&
-      prev.color === next.color
+      prev.color === next.color &&
+      prev.kind === next.kind
         ? prev
         : next
     );
@@ -1073,6 +1128,16 @@ const PlayScreen: React.FC = () => {
       }
     };
   }, []);
+
+  const chargeTitle = rentCharge?.kind === "BIRTHDAY" ? "Pay Birthday" : "Pay Rent";
+  const chargePayLabel = rentCharge?.kind === "BIRTHDAY" ? "Pay Birthday" : "Pay Rent";
+  const chargeSubtitle = rentCharge
+    ? rentCharge.kind === "BIRTHDAY"
+      ? `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M for their birthday.`
+      : `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M${
+          rentCharge.color ? ` for ${formatColor(rentCharge.color)} rent.` : " in rent."
+        }`
+    : "";
 
   return (
     <div className="play-screen">
@@ -1418,11 +1483,10 @@ const PlayScreen: React.FC = () => {
             <div className="charge-header">
               <div>
                 <div className="charge-title" id="charge-title">
-                  Pay Rent
+                  {chargeTitle}
                 </div>
                 <div className="charge-subtitle">
-                  {displayName(rentCharge.requesterId)} requests {rentAmountDue}M
-                  {rentCharge.color ? ` for ${formatColor(rentCharge.color)} rent.` : " in rent."}
+                  {chargeSubtitle}
                 </div>
               </div>
               <button
@@ -1464,11 +1528,15 @@ const PlayScreen: React.FC = () => {
                 <div className="charge-section-title">
                   Properties (total {rentPropertyTotal}M)
                 </div>
-                {myPropertyCards.length === 0 ? (
-                  <div className="charge-empty">No properties to pay.</div>
+                {chargePropertyCards.length === 0 ? (
+                  <div className="charge-empty">
+                    {hasNonPayableWilds
+                      ? "Ten-color wilds cannot be used to pay."
+                      : "No properties to pay."}
+                  </div>
                 ) : (
                   <div className="charge-cards">
-                    {myPropertyCards.map((card) => {
+                    {chargePropertyCards.map((card) => {
                       const selected = rentPropertySelected.has(card.id);
                       return (
                         <button
@@ -1504,7 +1572,7 @@ const PlayScreen: React.FC = () => {
                 onClick={submitRentPayment}
                 disabled={!canPayRent}
               >
-                Pay Rent
+                {chargePayLabel}
               </button>
             </div>
           </div>
@@ -1608,6 +1676,18 @@ const PlayScreen: React.FC = () => {
                   onClick={passGoSelected}
                 >
                   Draw 2 (Pass Go)
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "BIRTHDAY" && (
+                <button
+                  className="bg-pink-600 hover:bg-pink-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0}
+                  onClick={playBirthdaySelected}
+                >
+                  It's My Birthday (+2M each)
                 </button>
               )}
           </div>
