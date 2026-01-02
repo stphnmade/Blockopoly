@@ -50,7 +50,7 @@
 
 .property-collection-zone,
 .player-2-property-collection-zone {
-  flex: 0.5 1 auto;
+  flex: 0 1 auto;
   display: flex;
   min-width: 0;
 }

@@ -82,7 +82,7 @@ const Playmat5: React.FC<PlaymatProps> = ({
   const renderProperties = (
     pid: string,
     seat: PlayerKey,
-    orientation: "me" | "opponent"
+    orientation: "bottom" | "top" | "left" | "right"
   ) => {
     const entry = playerCardMap?.[pid];
     return (
@@ -105,27 +105,27 @@ const Playmat5: React.FC<PlaymatProps> = ({
 
       <div className="mat-stage">
         <div className="player-1-space">
-          {renderProperties(pidMap.p1, "p1", pidMap.p1 === myPID ? "me" : "opponent")}
+          {renderProperties(pidMap.p1, "p1", "bottom")}
           {renderBank(pidMap.p1)}
         </div>
 
         <div className="player-2-space">
-          {renderProperties(pidMap.p2, "p2", "opponent")}
+          {renderProperties(pidMap.p2, "p2", "left")}
           {renderBank(pidMap.p2)}
         </div>
 
         <div className="player-3-space">
-          {renderProperties(pidMap.p3, "p3", "opponent")}
+          {renderProperties(pidMap.p3, "p3", "right")}
           {renderBank(pidMap.p3)}
         </div>
 
         <div className="player-4-space">
-          {renderProperties(pidMap.p4, "p4", "opponent")}
+          {renderProperties(pidMap.p4, "p4", "top")}
           {renderBank(pidMap.p4)}
         </div>
 
         <div className="player-5-space">
-          {renderProperties(pidMap.p5, "p5", "opponent")}
+          {renderProperties(pidMap.p5, "p5", "top")}
           {renderBank(pidMap.p5)}
         </div>
 

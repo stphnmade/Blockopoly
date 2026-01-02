@@ -29,10 +29,10 @@
   --grid-rotate: 180deg;
 }
 .prop-grid.left {
-  --grid-rotate: -90deg;
+  --grid-rotate: 180deg;
 }
 .prop-grid.right {
-  --grid-rotate: 90deg;
+  --grid-rotate: 180deg;
 }
 
 .prop-grid-empty {

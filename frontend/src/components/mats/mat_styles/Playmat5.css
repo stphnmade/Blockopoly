@@ -3,44 +3,69 @@
 }
 
 .playing-mat-outline-5-players .mat-stage {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows:
-    minmax(0, 0.6fr)
+    minmax(0, 1.8fr)
     minmax(0, 1fr)
     minmax(0, 1fr);
   grid-template-areas:
-    "top-left top top-right"
-    "left center right"
-    "bottom bottom bottom";
+    "top-left top-left top-right top-right"
+    "left center center right"
+    "bottom bottom bottom bottom";
 }
 
 .player-1-space {
   grid-area: bottom;
   flex-direction: row;
+  align-self: end;
 }
 
 .player-2-space {
+  rotate: 270deg;
   grid-area: left;
   flex-direction: row;
   flex-wrap: wrap;
+  align-self: center;
+  justify-self: start;
 }
 
 .player-3-space {
+  rotate: 90deg;
   grid-area: right;
   flex-direction: row;
   flex-wrap: wrap;
+  align-self: center;
+  justify-self: end;
 }
 
 .player-4-space {
   grid-area: top-left;
   flex-direction: row;
   flex-wrap: wrap;
+  align-self: start;
 }
 
 .player-5-space {
   grid-area: top-right;
   flex-direction: row;
   flex-wrap: wrap;
+  align-self: start;
+}
+
+.player-4-space .bank-summary,
+.player-5-space .bank-summary {
+  transform: rotate(180deg);
+  transform-origin: center;
+}
+
+.player-2-space .bank-summary {
+  transform: rotate(180deg);
+  transform-origin: center;
+}
+
+.player-3-space .bank-summary {
+  transform: rotate(180deg);
+  transform-origin: center;
 }
 
 .center-pile {
