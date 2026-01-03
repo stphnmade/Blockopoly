@@ -138,14 +138,15 @@
 }
 
 .discard-pile {
-  width: clamp(120px, 16vw, 200px);
-  height: clamp(160px, 20vw, 240px);
+  width: clamp(120px, 16vw, 219px);
+  height: clamp(160px, 20vw, 316px);
   position: relative;
 }
 
 .discard-pile img {
-  width: 80%;
-  height: 80%;
+  top: -26%;
+  width: 45%;
+  height: 45%;
   object-fit: scale-down;
   display: block;
   border-radius: 10px;
