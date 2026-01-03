@@ -36,6 +36,9 @@ suspend fun requestRent(room: DealGame, game: MutableStateFlow<GameState>, playe
             if (rentRequest.target == playerId) return current
             if (current.playerState[rentRequest.target] == null) return current
         }
+        if (rentCard.actionType == ActionType.RENT && rentRequest.target != null) {
+            return current
+        }
 
         val chosenColor = resolveRentColor(playerState.getPropertySet(rentRequest.rentingSetId)?.color, rentRequest.rentColor)
             ?: return current

@@ -105,6 +105,7 @@ type Action =
   | { type: "Discard"; cardId: number }
   | { type: "PassGo"; id: number }
   | { type: "Birthday"; id: number }
+  | { type: "DebtCollect"; id: number; target: string }
   | { type: "AcceptCharge"; payment: number[] }
   | { type: "JustSayNo"; ids: number[]; respondingTo?: string | null }
   | {
@@ -124,7 +125,7 @@ type Action =
       toColor?: string | null;
     };
 
-type ChargeKind = "RENT" | "BIRTHDAY";
+type ChargeKind = "RENT" | "BIRTHDAY" | "DEBT_COLLECTOR";
 
 const GAME_API = import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
 const toWs = (base: string) =>
@@ -138,6 +139,7 @@ const assetForCard = (c: ServerCard) =>
 const MAX_HAND_SIZE = 7;
 const ALL_COLOR_COUNT = 10;
 const BIRTHDAY_PAYMENT_AMOUNT = 2;
+const DEBT_COLLECTOR_PAYMENT_AMOUNT = 5;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
 
 /** Click-only hand card (drag removed) */
@@ -224,6 +226,9 @@ const PlayScreen: React.FC = () => {
     color?: string | null;
     kind: ChargeKind;
   } | null>(null);
+  const [isDebtCollecting, setIsDebtCollecting] = useState(false);
+  const [debtCard, setDebtCard] = useState<ServerCard | null>(null);
+  const [debtTarget, setDebtTarget] = useState<string | null>(null);
   const [rentBankSelection, setRentBankSelection] = useState<number[]>([]);
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
   const [rentNotice, setRentNotice] = useState<{
@@ -378,6 +383,32 @@ const PlayScreen: React.FC = () => {
           }
           return;
         }
+        if ((msg as any).type === "DEBT_COLLECTOR") {
+          const payload = msg as any;
+          const requester = payload.requester as string | undefined;
+          const target = payload.target as string | undefined;
+          const targetLabel = target ? displayName(target) : "an opponent";
+          const isSelf = requester === myPID;
+          const message = isSelf
+            ? `You played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`
+            : `${displayName(requester)} played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`;
+          setRentNotice({ message });
+          if (rentNoticeTimer.current) {
+            clearTimeout(rentNoticeTimer.current);
+          }
+          rentNoticeTimer.current = setTimeout(() => {
+            setRentNotice(null);
+          }, 3200);
+          if (target && target === myPID) {
+            setRentCharge({
+              requesterId: requester ?? "",
+              amount: DEBT_COLLECTOR_PAYMENT_AMOUNT,
+              color: null,
+              kind: "DEBT_COLLECTOR",
+            });
+          }
+          return;
+        }
         if ((msg as any).type === "RENT_REQUEST") {
           const payload = msg as any;
           const requester = payload.requester as string | undefined;
@@ -521,7 +552,11 @@ const PlayScreen: React.FC = () => {
   /** Derived */
   const isMyTurn = game?.playerAtTurn === myPID;
   const playsLeft = Math.max(0, game?.cardsLeftToPlay ?? 0);
-  const discardNeeded = Math.max(0, myHand.length - MAX_HAND_SIZE);
+  const discardableHand = useMemo(
+    () => myHand.filter((card) => card.type !== "PROPERTY"),
+    [myHand]
+  );
+  const discardNeeded = Math.max(0, discardableHand.length - MAX_HAND_SIZE);
   const canConfirmDiscard = discardNeeded > 0 && discardSelection.length === discardNeeded;
 
   const orderedPids = (
@@ -654,6 +689,8 @@ const PlayScreen: React.FC = () => {
     [orderedPids, myPID]
   );
   const hasRentTargets = rentTargets.length > 0;
+  const debtTargets = rentTargets;
+  const hasDebtTargets = debtTargets.length > 0;
 
   const rentableSetMap = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -680,11 +717,20 @@ const PlayScreen: React.FC = () => {
     }));
   }, [isRainbowCard, rentCard, rentableSetMap]);
 
+  const isWildRentCard = useMemo(() => {
+    if (!rentCard) return false;
+    if (rentCard.actionType === "WILD_RENT") return true;
+    return isRainbowCard(rentCard.colors);
+  }, [isRainbowCard, rentCard]);
+
   const autoRentColor = rentColorOptions.length === 1 ? rentColorOptions[0].color : null;
   const autoRentSetId =
     rentColorOptions.length === 1 ? rentColorOptions[0].setIds?.[0] ?? null : null;
   const effectiveRentColor = rentColor ?? autoRentColor;
   const effectiveRentSetId = rentSetId ?? autoRentSetId;
+
+  const rentRequiresAll = !isWildRentCard;
+  const rentChargeAllEffective = rentRequiresAll ? true : rentChargeAll;
 
   const canConfirmRent =
     isMyTurn &&
@@ -693,7 +739,9 @@ const PlayScreen: React.FC = () => {
     !!effectiveRentColor &&
     !!effectiveRentSetId &&
     hasRentTargets &&
-    (rentChargeAll || !!rentTarget);
+    (rentChargeAllEffective || !!rentTarget);
+  const canConfirmDebt =
+    isMyTurn && playsLeft > 0 && !!debtCard && !!debtTarget && hasDebtTargets;
 
   const rentAmountDue = rentCharge?.amount ?? 0;
   const rentBankTotal = myBankCards.reduce((sum, card) => sum + getCardValue(card), 0);
@@ -749,6 +797,7 @@ const PlayScreen: React.FC = () => {
     if (isDiscarding) return;
     if (isPositioning) return;
     if (isRenting) return;
+    if (isDebtCollecting) return;
     if (card.type === "RENT_ACTION") {
       openRentMenu(card);
       return;
@@ -784,6 +833,25 @@ const PlayScreen: React.FC = () => {
     setMenuCard(null);
     setColorChoices(null);
   }, [isMyTurn, menuCard, playsLeft, wsSend]);
+
+  const openDebtCollectorMenu = useCallback(
+    (card: ServerCard) => {
+      if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
+      if (!hasDebtTargets) return;
+      setMenuCard(null);
+      setColorChoices(null);
+      setIsDebtCollecting(true);
+      setDebtCard(card);
+      setDebtTarget(null);
+    },
+    [hasDebtTargets, isDiscarding, isMyTurn, isPositioning, playsLeft]
+  );
+
+  const closeDebtCollectorMenu = useCallback(() => {
+    setIsDebtCollecting(false);
+    setDebtCard(null);
+    setDebtTarget(null);
+  }, []);
 
   const playPropertySelected = (color?: string) => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
@@ -869,14 +937,14 @@ const PlayScreen: React.FC = () => {
     if (!rentCard || !effectiveRentColor || !effectiveRentSetId) return;
     if (!isMyTurn || playsLeft <= 0) return;
     if (!hasRentTargets) return;
-    if (!rentChargeAll && !rentTarget) return;
+    if (!rentChargeAllEffective && !rentTarget) return;
     wsSend({
       type: "RequestRent",
       rentCardId: rentCard.id,
       rentDoublers: [],
       rentingSetId: effectiveRentSetId,
       rentColor: effectiveRentColor,
-      target: rentChargeAll ? null : rentTarget,
+      target: rentChargeAllEffective ? null : rentTarget,
     });
     closeRentMenu();
   }, [
@@ -887,10 +955,22 @@ const PlayScreen: React.FC = () => {
     isMyTurn,
     playsLeft,
     rentCard,
-    rentChargeAll,
+    rentChargeAllEffective,
     rentTarget,
     wsSend,
   ]);
+
+  const confirmDebtCollector = useCallback(() => {
+    if (!debtCard || !debtTarget) return;
+    if (!isMyTurn || playsLeft <= 0) return;
+    if (!hasDebtTargets) return;
+    wsSend({
+      type: "DebtCollect",
+      id: debtCard.id,
+      target: debtTarget,
+    });
+    closeDebtCollectorMenu();
+  }, [closeDebtCollectorMenu, debtCard, debtTarget, hasDebtTargets, isMyTurn, playsLeft, wsSend]);
 
   const toggleRentBankCard = useCallback(
     (cardId: number) => {
@@ -936,17 +1016,19 @@ const PlayScreen: React.FC = () => {
 
   const sendEndTurn = useCallback(() => {
     if (!isMyTurn) return;
-    if (myHand.length > MAX_HAND_SIZE) {
+    if (discardableHand.length > MAX_HAND_SIZE) {
       setIsDiscarding(true);
       setMenuCard(null);
       setColorChoices(null);
       return;
     }
     wsSend({ type: "EndTurn" });
-  }, [isMyTurn, myHand.length, wsSend]);
+  }, [discardableHand.length, isMyTurn, wsSend]);
 
   const toggleDiscardSelection = useCallback(
     (cardId: number) => {
+      const card = myHand.find((entry) => entry.id === cardId);
+      if (card?.type === "PROPERTY") return;
       setDiscardSelection((prev) => {
         if (prev.includes(cardId)) {
           return prev.filter((id) => id !== cardId);
@@ -955,7 +1037,7 @@ const PlayScreen: React.FC = () => {
         return [...prev, cardId];
       });
     },
-    [discardNeeded]
+    [discardNeeded, myHand]
   );
 
   const autoSelectDiscards = useCallback(() => {
@@ -963,7 +1045,7 @@ const PlayScreen: React.FC = () => {
     setDiscardSelection((prev) => {
       const selected = new Set(prev);
       const next = [...prev];
-      for (const card of myHand) {
+      for (const card of discardableHand) {
         if (next.length >= discardNeeded) break;
         if (!selected.has(card.id)) {
           next.push(card.id);
@@ -972,7 +1054,7 @@ const PlayScreen: React.FC = () => {
       }
       return next.slice(0, discardNeeded);
     });
-  }, [discardNeeded, myHand]);
+  }, [discardNeeded, discardableHand]);
 
   const confirmDiscardAndEndTurn = useCallback(() => {
     if (!isMyTurn || discardNeeded <= 0) return;
@@ -1003,11 +1085,11 @@ const PlayScreen: React.FC = () => {
       return;
     }
     setDiscardSelection((prev) => {
-      const inHand = prev.filter((id) => myHand.some((c) => c.id === id));
+      const inHand = prev.filter((id) => discardableHand.some((c) => c.id === id));
       if (inHand.length <= discardNeeded) return inHand;
       return inHand.slice(0, discardNeeded);
     });
-  }, [discardNeeded, isDiscarding, myHand]);
+  }, [discardNeeded, discardableHand, isDiscarding]);
 
   useEffect(() => {
     if (!isPositioning) return;
@@ -1053,10 +1135,37 @@ const PlayScreen: React.FC = () => {
 
   useEffect(() => {
     if (!isRenting) return;
+    if (rentRequiresAll) {
+      if (!rentChargeAll) setRentChargeAll(true);
+      if (rentTarget) setRentTarget(null);
+      return;
+    }
     if (!rentChargeAll && rentTargets.length === 1 && !rentTarget) {
       setRentTarget(rentTargets[0]);
     }
-  }, [isRenting, rentChargeAll, rentTarget, rentTargets]);
+  }, [isRenting, rentChargeAll, rentRequiresAll, rentTarget, rentTargets]);
+
+  useEffect(() => {
+    if (!isDebtCollecting) return;
+    if (!isMyTurn || isDiscarding || isPositioning) {
+      closeDebtCollectorMenu();
+    }
+  }, [closeDebtCollectorMenu, isDebtCollecting, isDiscarding, isMyTurn, isPositioning]);
+
+  useEffect(() => {
+    if (!isDebtCollecting || !debtCard) return;
+    const stillInHand = myHand.some((card) => card.id === debtCard.id);
+    if (!stillInHand) {
+      closeDebtCollectorMenu();
+    }
+  }, [closeDebtCollectorMenu, debtCard, isDebtCollecting, myHand]);
+
+  useEffect(() => {
+    if (!isDebtCollecting) return;
+    if (debtTargets.length === 1 && !debtTarget) {
+      setDebtTarget(debtTargets[0]);
+    }
+  }, [debtTarget, debtTargets, isDebtCollecting]);
 
   useEffect(() => {
     const pending = getPendingInteractions(game?.pendingInteractions);
@@ -1067,7 +1176,9 @@ const PlayScreen: React.FC = () => {
     const rentInteraction = pending.find(
       (entry) =>
         entry?.awaitingResponseFrom === myPID &&
-        (entry?.action?.type === "RENT_REQUEST" || entry?.action?.type === "BIRTHDAY")
+        (entry?.action?.type === "RENT_REQUEST" ||
+          entry?.action?.type === "BIRTHDAY" ||
+          entry?.action?.type === "DEBT_COLLECTOR")
     );
     if (!rentInteraction) {
       setRentCharge(null);
@@ -1075,15 +1186,18 @@ const PlayScreen: React.FC = () => {
     }
     const action = rentInteraction.action ?? {};
     const isBirthday = action.type === "BIRTHDAY";
+    const isDebtCollector = action.type === "DEBT_COLLECTOR";
     const next = {
       requesterId: action.requester ?? "",
       amount: isBirthday
         ? BIRTHDAY_PAYMENT_AMOUNT
-        : typeof action.amount === "number"
-          ? action.amount
-          : Number(action.amount ?? 0) || 0,
-      color: isBirthday ? null : action.color ?? null,
-      kind: isBirthday ? "BIRTHDAY" : "RENT",
+        : isDebtCollector
+          ? DEBT_COLLECTOR_PAYMENT_AMOUNT
+          : typeof action.amount === "number"
+            ? action.amount
+            : Number(action.amount ?? 0) || 0,
+      color: isBirthday || isDebtCollector ? null : action.color ?? null,
+      kind: isBirthday ? "BIRTHDAY" : isDebtCollector ? "DEBT_COLLECTOR" : "RENT",
     };
     setRentCharge((prev) =>
       prev &&
@@ -1129,15 +1243,31 @@ const PlayScreen: React.FC = () => {
     };
   }, []);
 
-  const chargeTitle = rentCharge?.kind === "BIRTHDAY" ? "Pay Birthday" : "Pay Rent";
-  const chargePayLabel = rentCharge?.kind === "BIRTHDAY" ? "Pay Birthday" : "Pay Rent";
+  const chargeTitle =
+    rentCharge?.kind === "BIRTHDAY"
+      ? "Pay Birthday"
+      : rentCharge?.kind === "DEBT_COLLECTOR"
+        ? "Pay Debt Collector"
+        : "Pay Rent";
+  const chargePayLabel =
+    rentCharge?.kind === "BIRTHDAY"
+      ? "Pay Birthday"
+      : rentCharge?.kind === "DEBT_COLLECTOR"
+        ? "Pay Debt"
+        : "Pay Rent";
   const chargeSubtitle = rentCharge
     ? rentCharge.kind === "BIRTHDAY"
       ? `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M for their birthday.`
+      : rentCharge.kind === "DEBT_COLLECTOR"
+        ? `${displayName(rentCharge.requesterId)} demands ${rentAmountDue}M in debt.`
       : `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M${
           rentCharge.color ? ` for ${formatColor(rentCharge.color)} rent.` : " in rent."
         }`
     : "";
+  const mustPayAllLabel =
+    rentCharge?.kind === "RENT"
+      ? "All of your cards are required to cover this rent."
+      : "All of your cards are required to cover this charge.";
 
   return (
     <div className="play-screen">
@@ -1420,7 +1550,7 @@ const PlayScreen: React.FC = () => {
                 <div className="rent-options">
                   <button
                     type="button"
-                    className={`rent-option ${rentChargeAll ? "selected" : ""}`}
+                    className={`rent-option ${rentChargeAllEffective ? "selected" : ""}`}
                     onClick={() => {
                       setRentChargeAll(true);
                       setRentTarget(null);
@@ -1431,14 +1561,14 @@ const PlayScreen: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    className={`rent-option ${!rentChargeAll ? "selected" : ""}`}
+                    className={`rent-option ${!rentChargeAllEffective ? "selected" : ""}`}
                     onClick={() => setRentChargeAll(false)}
-                    disabled={!hasRentTargets}
+                    disabled={!hasRentTargets || rentRequiresAll}
                   >
                     Single opponent
                   </button>
                 </div>
-                {!rentChargeAll && (
+                {!rentChargeAllEffective && !rentRequiresAll && (
                   <div className="rent-options">
                     {rentTargets.map((pid) => {
                       const selected = rentTarget === pid;
@@ -1455,7 +1585,7 @@ const PlayScreen: React.FC = () => {
                     })}
                   </div>
                 )}
-                {!rentChargeAll && rentTargets.length === 0 && (
+                {!rentChargeAllEffective && rentTargets.length === 0 && (
                   <div className="rent-empty">No opponents available.</div>
                 )}
               </div>
@@ -1471,6 +1601,63 @@ const PlayScreen: React.FC = () => {
                 disabled={!canConfirmRent}
               >
                 Charge Rent
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDebtCollecting && debtCard && (
+        <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="debt-title">
+          <div className="rent-modal">
+            <div className="rent-header">
+              <div>
+                <div className="rent-title" id="debt-title">
+                  Debt Collector
+                </div>
+                <div className="rent-subtitle">
+                  Choose a target to collect {DEBT_COLLECTOR_PAYMENT_AMOUNT}M.
+                </div>
+              </div>
+              <div className="rent-card-preview">
+                <img src={assetForCard(debtCard)} alt="Debt collector card" draggable={false} />
+              </div>
+            </div>
+            <div className="rent-body">
+              <div className="rent-section">
+                <div className="rent-section-title">Target</div>
+                {hasDebtTargets ? (
+                  <div className="rent-options">
+                    {debtTargets.map((pid) => {
+                      const selected = debtTarget === pid;
+                      return (
+                        <button
+                          key={`debt-${pid}`}
+                          type="button"
+                          className={`rent-option ${selected ? "selected" : ""}`}
+                          onClick={() => setDebtTarget(pid)}
+                        >
+                          {displayName(pid)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rent-empty">No opponents available.</div>
+                )}
+              </div>
+            </div>
+            <div className="rent-actions">
+              <button type="button" className="rent-secondary" onClick={closeDebtCollectorMenu}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rent-primary"
+                onClick={confirmDebtCollector}
+                disabled={!canConfirmDebt}
+              >
+                Collect {DEBT_COLLECTOR_PAYMENT_AMOUNT}M
               </button>
             </div>
           </div>
@@ -1562,7 +1749,7 @@ const PlayScreen: React.FC = () => {
             </div>
             {rentMustPayAll && (
               <div className="charge-note">
-                All of your cards are required to cover this rent.
+                {mustPayAllLabel}
               </div>
             )}
             <div className="charge-actions">
@@ -1594,7 +1781,8 @@ const PlayScreen: React.FC = () => {
               {myHand.map((card, idx) => {
                 const selected = discardSelection.includes(card.id);
                 const selectionFull = discardSelection.length >= discardNeeded;
-                const disabled = !selected && selectionFull;
+                const isProperty = card.type === "PROPERTY";
+                const disabled = isProperty || (!selected && selectionFull);
                 return (
                   <button
                     key={`discard-${card.id}-${idx}`}
@@ -1688,6 +1876,18 @@ const PlayScreen: React.FC = () => {
                   onClick={playBirthdaySelected}
                 >
                   It's My Birthday (+2M each)
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "DEBT_COLLECTOR" && (
+                <button
+                  className="bg-rose-600 hover:bg-rose-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0 || !hasDebtTargets}
+                  onClick={() => openDebtCollectorMenu(menuCard)}
+                >
+                  Debt Collector ({DEBT_COLLECTOR_PAYMENT_AMOUNT}M)
                 </button>
               )}
           </div>
