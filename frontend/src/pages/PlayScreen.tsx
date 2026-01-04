@@ -20,6 +20,28 @@ import {
   NAME_KEY,
 } from "../constants/constants";
 import "../style/PlayScreen.css";
+import ChargeModal from "./play/components/ChargeModal";
+import DealBreakerModal from "./play/components/DealBreakerModal";
+import DealResponseModal from "./play/components/DealResponseModal";
+import DebtCollectorModal from "./play/components/DebtCollectorModal";
+import DevelopmentModal from "./play/components/DevelopmentModal";
+import DevelopmentJsnModal from "./play/components/DevelopmentJsnModal";
+import DiscardModal from "./play/components/DiscardModal";
+import ForcedDealModal from "./play/components/ForcedDealModal";
+import JsnChainModal from "./play/components/JsnChainModal";
+import PositioningModal from "./play/components/PositioningModal";
+import RentModal from "./play/components/RentModal";
+import SlyDealModal from "./play/components/SlyDealModal";
+import type { DealBreakerTarget } from "./play/components/DealBreakerModal";
+import type {
+  PositioningCard,
+  PositioningTarget,
+  PositioningTargets,
+  DealTargetEntry,
+  PropertySetView,
+  RentColorOption,
+  ServerCard,
+} from "./play/types";
 
 // Drag-and-drop removed: using click/menu interactions only
 
@@ -54,16 +76,6 @@ const Playmat5 = lazy(
   () => import("../components/mats/Playmat5")
 ) as React.LazyExoticComponent<React.ComponentType<PlaymatProps>>;
 
-/** Server types */
-type ServerCardType = "GENERAL_ACTION" | "RENT_ACTION" | "PROPERTY" | "MONEY";
-type ServerCard = {
-  id: number;
-  type: ServerCardType;
-  value?: number;
-  actionType?: string;
-  colors?: string[];
-};
-
 type ServerPlayerState = {
   hand: ServerCard[];
   propertyCollection: Record<string, ServerCard[]>;
@@ -81,12 +93,7 @@ type ServerGameState = {
   discardPile: ServerCard[];
 };
 
-type PropertySetView = {
-  id: string;
-  color: string | null;
-  isComplete: boolean;
-  properties: ServerCard[];
-};
+type PropertyCardEntry = DealTargetEntry & { isComplete: boolean };
 
 type StateEnvelope =
   | { type: "STATE"; gameState: ServerGameState }
@@ -110,6 +117,7 @@ type Action =
   | { type: "AcceptCharge"; payment: number[] }
   | { type: "JustSayNo"; ids: number[]; respondingTo?: string | null }
   | { type: "AcceptJustSayNo"; respondingTo: string }
+  | { type: "AcceptDeal"; receiveAsColor?: string | null }
   | {
       type: "RequestRent";
       rentCardId: number;
@@ -118,6 +126,16 @@ type Action =
       rentColor?: string | null;
       target?: string | null;
     }
+  | { type: "SlyDeal"; id: number; targetCard: number; colorToReceiveAs?: string | null }
+  | {
+      type: "ForcedDeal";
+      id: number;
+      targetCard: number;
+      cardToGive: number;
+      colorToReceiveAs?: string | null;
+    }
+  | { type: "Dealbreaker"; id: number; targetSetId: string }
+  | { type: "PlayDevelopment"; id: number; propertySetId: string }
   | {
       type: "MoveProperty";
       cardId: number;
@@ -210,14 +228,8 @@ const PlayScreen: React.FC = () => {
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
   const [isPositioning, setIsPositioning] = useState(false);
-  const [positioningCard, setPositioningCard] = useState<{
-    card: ServerCard;
-    fromSetId: string;
-  } | null>(null);
-  const [positionTarget, setPositionTarget] = useState<{
-    toSetId: string;
-    toColor?: string | null;
-  } | null>(null);
+  const [positioningCard, setPositioningCard] = useState<PositioningCard | null>(null);
+  const [positionTarget, setPositionTarget] = useState<PositioningTarget>(null);
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [discardSelection, setDiscardSelection] = useState<number[]>([]);
   const [isRenting, setIsRenting] = useState(false);
@@ -235,6 +247,22 @@ const PlayScreen: React.FC = () => {
   const [isDebtCollecting, setIsDebtCollecting] = useState(false);
   const [debtCard, setDebtCard] = useState<ServerCard | null>(null);
   const [debtTarget, setDebtTarget] = useState<string | null>(null);
+  const [isSlyDealing, setIsSlyDealing] = useState(false);
+  const [slyCard, setSlyCard] = useState<ServerCard | null>(null);
+  const [slyTargetCardId, setSlyTargetCardId] = useState<number | null>(null);
+  const [slyReceiveColor, setSlyReceiveColor] = useState<string | null>(null);
+  const [isForcedDealing, setIsForcedDealing] = useState(false);
+  const [forcedCard, setForcedCard] = useState<ServerCard | null>(null);
+  const [forcedTargetCardId, setForcedTargetCardId] = useState<number | null>(null);
+  const [forcedGiveCardId, setForcedGiveCardId] = useState<number | null>(null);
+  const [forcedReceiveColor, setForcedReceiveColor] = useState<string | null>(null);
+  const [isDealBreaking, setIsDealBreaking] = useState(false);
+  const [dealBreakerCard, setDealBreakerCard] = useState<ServerCard | null>(null);
+  const [dealBreakerTargetSetId, setDealBreakerTargetSetId] = useState<string | null>(null);
+  const [isDeveloping, setIsDeveloping] = useState(false);
+  const [developmentCard, setDevelopmentCard] = useState<ServerCard | null>(null);
+  const [developmentTargetSetId, setDevelopmentTargetSetId] = useState<string | null>(null);
+  const [dealReceiveColor, setDealReceiveColor] = useState<string | null>(null);
   const [rentBankSelection, setRentBankSelection] = useState<number[]>([]);
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
   const [rentDoublers, setRentDoublers] = useState<number[]>([]);
@@ -727,26 +755,40 @@ const PlayScreen: React.FC = () => {
     return m;
   }, [game?.playerState]);
 
-
-  const myPropertySets = useMemo<PropertySetView[]>(() => {
-    const ps = game?.playerState?.[myPID];
-    if (!ps?.propertyCollection) return [];
-    const rawCollection = (ps.propertyCollection as any).collection ?? ps.propertyCollection;
+  const parsePropertyCollection = useCallback((propertyCollection: unknown): PropertySetView[] => {
+    if (!propertyCollection) return [];
+    const rawCollection = (propertyCollection as any).collection ?? propertyCollection;
     if (!rawCollection || typeof rawCollection !== "object") return [];
     return Object.entries(rawCollection).map(([setId, setVal]) => {
       const properties: ServerCard[] = Array.isArray(setVal)
         ? (setVal as unknown as ServerCard[])
-        : (setVal && Array.isArray((setVal as any).properties)
+        : setVal && Array.isArray((setVal as any).properties)
           ? (setVal as any).properties
-          : []);
+          : [];
       return {
         id: setId,
         color: (setVal as any)?.color ?? null,
         isComplete: Boolean((setVal as any)?.isComplete),
         properties,
+        hasHouse: Boolean((setVal as any)?.house),
+        hasHotel: Boolean((setVal as any)?.hotel),
       };
     });
-  }, [game?.playerState, myPID]);
+  }, []);
+
+  const playerPropertySets = useMemo(() => {
+    const map: Record<string, PropertySetView[]> = {};
+    if (!game?.playerState) return map;
+    for (const [pid, ps] of Object.entries(game.playerState)) {
+      map[pid] = parsePropertyCollection(ps.propertyCollection);
+    }
+    return map;
+  }, [game?.playerState, parsePropertyCollection]);
+
+  const myPropertySets = useMemo<PropertySetView[]>(
+    () => playerPropertySets[myPID] ?? [],
+    [myPID, playerPropertySets]
+  );
 
   const myBankCards = useMemo(
     () =>
@@ -766,11 +808,90 @@ const PlayScreen: React.FC = () => {
 
   const getCardValue = (card: ServerCard) => (typeof card.value === "number" ? card.value : 0);
 
+  const propertyEntries = useMemo<PropertyCardEntry[]>(() => {
+    const entries: PropertyCardEntry[] = [];
+    Object.entries(playerPropertySets).forEach(([pid, sets]) => {
+      sets.forEach((set) => {
+        set.properties.forEach((card) => {
+          entries.push({
+            card,
+            ownerId: pid,
+            setId: set.id,
+            setColor: set.color,
+            isComplete: set.isComplete,
+          });
+        });
+      });
+    });
+    return entries;
+  }, [playerPropertySets]);
+
+  const propertyEntryById = useMemo(() => {
+    const map = new Map<number, PropertyCardEntry>();
+    propertyEntries.forEach((entry) => {
+      map.set(entry.card.id, entry);
+    });
+    return map;
+  }, [propertyEntries]);
+
+  const opponentPropertyEntries = useMemo(
+    () => propertyEntries.filter((entry) => entry.ownerId !== myPID),
+    [propertyEntries, myPID]
+  );
+  const opponentIncompleteEntries = useMemo(
+    () => opponentPropertyEntries.filter((entry) => !entry.isComplete),
+    [opponentPropertyEntries]
+  );
+  const myIncompleteEntries = useMemo(
+    () => propertyEntries.filter((entry) => entry.ownerId === myPID && !entry.isComplete),
+    [propertyEntries, myPID]
+  );
+
+  const dealBreakerTargets = useMemo<DealBreakerTarget[]>(() => {
+    const targets: DealBreakerTarget[] = [];
+    Object.entries(playerPropertySets).forEach(([pid, sets]) => {
+      if (pid === myPID) return;
+      sets.forEach((set) => {
+        if (set.isComplete) targets.push({ ownerId: pid, set });
+      });
+    });
+    return targets;
+  }, [myPID, playerPropertySets]);
+
+  const houseTargets = useMemo(
+    () => myPropertySets.filter((set) => set.isComplete && !set.hasHouse),
+    [myPropertySets]
+  );
+  const hotelTargets = useMemo(
+    () => myPropertySets.filter((set) => set.isComplete && set.hasHouse && !set.hasHotel),
+    [myPropertySets]
+  );
+
   
 
   const isRainbowCard = useCallback(
     (colors?: string[]) => (colors?.length ?? 0) >= ALL_COLOR_COUNT,
     []
+  );
+
+  const getDefaultReceiveColor = useCallback(
+    (card: ServerCard, fallback?: string | null) => {
+      const colors = card.colors ?? [];
+      if (colors.length === 0) return null;
+      if (isRainbowCard(colors)) return null;
+      if (colors.length === 1) return colors[0];
+      if (fallback && colors.includes(fallback)) return fallback;
+      return colors[0] ?? null;
+    },
+    [isRainbowCard]
+  );
+
+  const needsReceiveColor = useCallback(
+    (card: ServerCard) => {
+      const colors = card.colors ?? [];
+      return !isRainbowCard(colors) && colors.length > 1;
+    },
+    [isRainbowCard]
   );
 
   const chargePropertyCards = useMemo(
@@ -782,7 +903,7 @@ const PlayScreen: React.FC = () => {
     [isRainbowCard, myPropertyCards]
   );
 
-  const positioningTargets = useMemo(() => {
+  const positioningTargets = useMemo<PositioningTargets>(() => {
     if (!positioningCard) {
       return { existing: [] as PropertySetView[], newColors: [] as string[], isRainbow: false };
     }
@@ -806,6 +927,11 @@ const PlayScreen: React.FC = () => {
   const hasRentTargets = rentTargets.length > 0;
   const debtTargets = rentTargets;
   const hasDebtTargets = debtTargets.length > 0;
+  const hasSlyTargets = opponentIncompleteEntries.length > 0;
+  const hasForcedTargets = opponentIncompleteEntries.length > 0 && myIncompleteEntries.length > 0;
+  const hasDealBreakerTargets = dealBreakerTargets.length > 0;
+  const hasHouseTargets = houseTargets.length > 0;
+  const hasHotelTargets = hotelTargets.length > 0;
 
   const rentableSetMap = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -818,7 +944,7 @@ const PlayScreen: React.FC = () => {
     return map;
   }, [myPropertySets]);
 
-  const rentColorOptions = useMemo(() => {
+  const rentColorOptions = useMemo<RentColorOption[]>(() => {
     if (!rentCard) return [];
     const cardColors = rentCard.colors ?? [];
     const isWildRent = isRainbowCard(cardColors);
@@ -917,6 +1043,36 @@ const PlayScreen: React.FC = () => {
   const canAddFirstDouble = maxRentDoubles >= 1;
   const canAddSecondDouble = maxRentDoubles >= 2;
   const rentMultiplier = rentDoublers.length > 0 ? 1 << rentDoublers.length : 1;
+
+  const slyTargetEntry = useMemo(
+    () => (slyTargetCardId ? propertyEntryById.get(slyTargetCardId) ?? null : null),
+    [propertyEntryById, slyTargetCardId]
+  );
+  const slyNeedsColorChoice = slyTargetEntry ? needsReceiveColor(slyTargetEntry.card) : false;
+  const slyAvailableColors = slyTargetEntry?.card.colors ?? [];
+  const slyResolvedColor = slyTargetEntry
+    ? slyNeedsColorChoice
+      ? slyReceiveColor ?? getDefaultReceiveColor(slyTargetEntry.card, slyTargetEntry.setColor)
+      : getDefaultReceiveColor(slyTargetEntry.card, slyTargetEntry.setColor)
+    : null;
+
+  const forcedTargetEntry = useMemo(
+    () => (forcedTargetCardId ? propertyEntryById.get(forcedTargetCardId) ?? null : null),
+    [forcedTargetCardId, propertyEntryById]
+  );
+  const forcedGiveEntry = useMemo(
+    () => (forcedGiveCardId ? propertyEntryById.get(forcedGiveCardId) ?? null : null),
+    [forcedGiveCardId, propertyEntryById]
+  );
+  const forcedNeedsColorChoice = forcedTargetEntry
+    ? needsReceiveColor(forcedTargetEntry.card)
+    : false;
+  const forcedAvailableColors = forcedTargetEntry?.card.colors ?? [];
+  const forcedResolvedColor = forcedTargetEntry
+    ? forcedNeedsColorChoice
+      ? forcedReceiveColor ?? getDefaultReceiveColor(forcedTargetEntry.card, forcedTargetEntry.setColor)
+      : getDefaultReceiveColor(forcedTargetEntry.card, forcedTargetEntry.setColor)
+    : null;
   /** Click-menu actions */
   const onCardClick = (card: ServerCard) => {
     if (!isMyTurn) return;
@@ -924,6 +1080,10 @@ const PlayScreen: React.FC = () => {
     if (isPositioning) return;
     if (isRenting) return;
     if (isDebtCollecting) return;
+    if (isSlyDealing) return;
+    if (isForcedDealing) return;
+    if (isDealBreaking) return;
+    if (isDeveloping) return;
     setMenuCard(card);
     if (card.type === "PROPERTY") {
       const colors = card.colors ?? [];
@@ -1135,6 +1295,188 @@ const PlayScreen: React.FC = () => {
     });
     closeDebtCollectorMenu();
   }, [closeDebtCollectorMenu, debtCard, debtTarget, hasDebtTargets, isMyTurn, playsLeft, wsSend]);
+
+  const openSlyDealMenu = useCallback(
+    (card: ServerCard) => {
+      if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
+      setMenuCard(null);
+      setColorChoices(null);
+      setIsSlyDealing(true);
+      setSlyCard(card);
+      setSlyTargetCardId(null);
+      setSlyReceiveColor(null);
+    },
+    [isDiscarding, isMyTurn, isPositioning, playsLeft]
+  );
+
+  const closeSlyDealMenu = useCallback(() => {
+    setIsSlyDealing(false);
+    setSlyCard(null);
+    setSlyTargetCardId(null);
+    setSlyReceiveColor(null);
+  }, []);
+
+  const selectSlyTarget = useCallback(
+    (cardId: number) => {
+      const entry = propertyEntryById.get(cardId);
+      setSlyTargetCardId(cardId);
+      setSlyReceiveColor(entry ? getDefaultReceiveColor(entry.card, entry.setColor) : null);
+    },
+    [getDefaultReceiveColor, propertyEntryById]
+  );
+
+  const selectSlyColor = useCallback((color: string) => {
+    setSlyReceiveColor(color);
+  }, []);
+
+  const confirmSlyDeal = useCallback(() => {
+    if (!slyCard || !slyTargetEntry) return;
+    if (!isMyTurn || playsLeft <= 0) return;
+    const colorToReceiveAs = slyNeedsColorChoice
+      ? slyReceiveColor ?? getDefaultReceiveColor(slyTargetEntry.card, slyTargetEntry.setColor)
+      : getDefaultReceiveColor(slyTargetEntry.card, slyTargetEntry.setColor);
+    wsSend({
+      type: "SlyDeal",
+      id: slyCard.id,
+      targetCard: slyTargetEntry.card.id,
+      ...(colorToReceiveAs ? { colorToReceiveAs } : {}),
+    });
+    closeSlyDealMenu();
+  }, [
+    closeSlyDealMenu,
+    getDefaultReceiveColor,
+    isMyTurn,
+    playsLeft,
+    slyCard,
+    slyNeedsColorChoice,
+    slyReceiveColor,
+    slyTargetEntry,
+    wsSend,
+  ]);
+
+  const openForcedDealMenu = useCallback(
+    (card: ServerCard) => {
+      if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
+      setMenuCard(null);
+      setColorChoices(null);
+      setIsForcedDealing(true);
+      setForcedCard(card);
+      setForcedTargetCardId(null);
+      setForcedGiveCardId(null);
+      setForcedReceiveColor(null);
+    },
+    [isDiscarding, isMyTurn, isPositioning, playsLeft]
+  );
+
+  const closeForcedDealMenu = useCallback(() => {
+    setIsForcedDealing(false);
+    setForcedCard(null);
+    setForcedTargetCardId(null);
+    setForcedGiveCardId(null);
+    setForcedReceiveColor(null);
+  }, []);
+
+  const selectForcedGive = useCallback((cardId: number) => {
+    setForcedGiveCardId(cardId);
+  }, []);
+
+  const selectForcedTarget = useCallback(
+    (cardId: number) => {
+      const entry = propertyEntryById.get(cardId);
+      setForcedTargetCardId(cardId);
+      setForcedReceiveColor(entry ? getDefaultReceiveColor(entry.card, entry.setColor) : null);
+    },
+    [getDefaultReceiveColor, propertyEntryById]
+  );
+
+  const selectForcedColor = useCallback((color: string) => {
+    setForcedReceiveColor(color);
+  }, []);
+
+  const confirmForcedDeal = useCallback(() => {
+    if (!forcedCard || !forcedTargetEntry || !forcedGiveEntry) return;
+    if (!isMyTurn || playsLeft <= 0) return;
+    const colorToReceiveAs = forcedNeedsColorChoice
+      ? forcedReceiveColor ?? getDefaultReceiveColor(forcedTargetEntry.card, forcedTargetEntry.setColor)
+      : getDefaultReceiveColor(forcedTargetEntry.card, forcedTargetEntry.setColor);
+    wsSend({
+      type: "ForcedDeal",
+      id: forcedCard.id,
+      targetCard: forcedTargetEntry.card.id,
+      cardToGive: forcedGiveEntry.card.id,
+      ...(colorToReceiveAs ? { colorToReceiveAs } : {}),
+    });
+    closeForcedDealMenu();
+  }, [
+    closeForcedDealMenu,
+    forcedCard,
+    forcedGiveEntry,
+    forcedNeedsColorChoice,
+    forcedReceiveColor,
+    forcedTargetEntry,
+    getDefaultReceiveColor,
+    isMyTurn,
+    playsLeft,
+    wsSend,
+  ]);
+
+  const openDealBreakerMenu = useCallback(
+    (card: ServerCard) => {
+      if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
+      setMenuCard(null);
+      setColorChoices(null);
+      setIsDealBreaking(true);
+      setDealBreakerCard(card);
+      setDealBreakerTargetSetId(null);
+    },
+    [isDiscarding, isMyTurn, isPositioning, playsLeft]
+  );
+
+  const closeDealBreakerMenu = useCallback(() => {
+    setIsDealBreaking(false);
+    setDealBreakerCard(null);
+    setDealBreakerTargetSetId(null);
+  }, []);
+
+  const confirmDealBreaker = useCallback(() => {
+    if (!dealBreakerCard || !dealBreakerTargetSetId) return;
+    if (!isMyTurn || playsLeft <= 0) return;
+    wsSend({
+      type: "Dealbreaker",
+      id: dealBreakerCard.id,
+      targetSetId: dealBreakerTargetSetId,
+    });
+    closeDealBreakerMenu();
+  }, [closeDealBreakerMenu, dealBreakerCard, dealBreakerTargetSetId, isMyTurn, playsLeft, wsSend]);
+
+  const openDevelopmentMenu = useCallback(
+    (card: ServerCard) => {
+      if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
+      setMenuCard(null);
+      setColorChoices(null);
+      setIsDeveloping(true);
+      setDevelopmentCard(card);
+      setDevelopmentTargetSetId(null);
+    },
+    [isDiscarding, isMyTurn, isPositioning, playsLeft]
+  );
+
+  const closeDevelopmentMenu = useCallback(() => {
+    setIsDeveloping(false);
+    setDevelopmentCard(null);
+    setDevelopmentTargetSetId(null);
+  }, []);
+
+  const confirmDevelopment = useCallback(() => {
+    if (!developmentCard || !developmentTargetSetId) return;
+    if (!isMyTurn || playsLeft <= 0) return;
+    wsSend({
+      type: "PlayDevelopment",
+      id: developmentCard.id,
+      propertySetId: developmentTargetSetId,
+    });
+    closeDevelopmentMenu();
+  }, [closeDevelopmentMenu, developmentCard, developmentTargetSetId, isMyTurn, playsLeft, wsSend]);
 
   const toggleRentBankCard = useCallback(
     (cardId: number) => {
@@ -1361,6 +1703,134 @@ const PlayScreen: React.FC = () => {
   }, [debtTarget, debtTargets, isDebtCollecting]);
 
   useEffect(() => {
+    if (!isSlyDealing) return;
+    if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) {
+      closeSlyDealMenu();
+      return;
+    }
+    if (slyCard && !myHand.some((card) => card.id === slyCard.id)) {
+      closeSlyDealMenu();
+    }
+  }, [
+    closeSlyDealMenu,
+    isDiscarding,
+    isMyTurn,
+    isPositioning,
+    isSlyDealing,
+    myHand,
+    playsLeft,
+    slyCard,
+  ]);
+
+  useEffect(() => {
+    if (!isForcedDealing) return;
+    if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) {
+      closeForcedDealMenu();
+      return;
+    }
+    if (forcedCard && !myHand.some((card) => card.id === forcedCard.id)) {
+      closeForcedDealMenu();
+    }
+  }, [
+    closeForcedDealMenu,
+    forcedCard,
+    isDiscarding,
+    isForcedDealing,
+    isMyTurn,
+    isPositioning,
+    myHand,
+    playsLeft,
+  ]);
+
+  useEffect(() => {
+    if (!isDealBreaking) return;
+    if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) {
+      closeDealBreakerMenu();
+      return;
+    }
+    if (dealBreakerCard && !myHand.some((card) => card.id === dealBreakerCard.id)) {
+      closeDealBreakerMenu();
+    }
+  }, [
+    closeDealBreakerMenu,
+    dealBreakerCard,
+    isDealBreaking,
+    isDiscarding,
+    isMyTurn,
+    isPositioning,
+    myHand,
+    playsLeft,
+  ]);
+
+  useEffect(() => {
+    if (!isDeveloping) return;
+    if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) {
+      closeDevelopmentMenu();
+      return;
+    }
+    if (developmentCard && !myHand.some((card) => card.id === developmentCard.id)) {
+      closeDevelopmentMenu();
+    }
+  }, [
+    closeDevelopmentMenu,
+    developmentCard,
+    isDeveloping,
+    isDiscarding,
+    isMyTurn,
+    isPositioning,
+    myHand,
+    playsLeft,
+  ]);
+
+  useEffect(() => {
+    if (!isSlyDealing) return;
+    if (slyTargetCardId) return;
+    if (opponentIncompleteEntries.length === 1) {
+      selectSlyTarget(opponentIncompleteEntries[0].card.id);
+    }
+  }, [isSlyDealing, opponentIncompleteEntries, selectSlyTarget, slyTargetCardId]);
+
+  useEffect(() => {
+    if (!isForcedDealing) return;
+    if (!forcedGiveCardId && myIncompleteEntries.length === 1) {
+      setForcedGiveCardId(myIncompleteEntries[0].card.id);
+    }
+    if (!forcedTargetCardId && opponentIncompleteEntries.length === 1) {
+      selectForcedTarget(opponentIncompleteEntries[0].card.id);
+    }
+  }, [
+    forcedGiveCardId,
+    forcedTargetCardId,
+    isForcedDealing,
+    myIncompleteEntries,
+    opponentIncompleteEntries,
+    selectForcedTarget,
+  ]);
+
+  useEffect(() => {
+    if (!isDealBreaking) return;
+    if (!dealBreakerTargetSetId && dealBreakerTargets.length === 1) {
+      setDealBreakerTargetSetId(dealBreakerTargets[0].set.id);
+    }
+  }, [dealBreakerTargetSetId, dealBreakerTargets, isDealBreaking]);
+
+  useEffect(() => {
+    if (!isDeveloping || !developmentCard) return;
+    if (developmentTargetSetId) return;
+    const isHotel = developmentCard.actionType === "HOTEL";
+    const targets = isHotel ? hotelTargets : houseTargets;
+    if (targets.length === 1) {
+      setDevelopmentTargetSetId(targets[0].id);
+    }
+  }, [
+    developmentCard,
+    developmentTargetSetId,
+    hotelTargets,
+    houseTargets,
+    isDeveloping,
+  ]);
+
+  useEffect(() => {
     const pending = pendingInteractions;
     if (pending.length === 0) {
       setRentCharge(null);
@@ -1369,6 +1839,7 @@ const PlayScreen: React.FC = () => {
     const rentInteraction = pending.find(
       (entry) =>
         entry?.awaitingResponseFrom === myPID &&
+        entry?.toPlayer === myPID &&
         (entry?.action?.type === "RENT_REQUEST" ||
           entry?.action?.type === "BIRTHDAY" ||
           entry?.action?.type === "DEBT_COLLECTOR")
@@ -1466,6 +1937,144 @@ const PlayScreen: React.FC = () => {
     rentCharge?.kind === "RENT"
       ? "All of your cards are required to cover this rent."
       : "All of your cards are required to cover this charge.";
+
+  const rentJsnInteraction = useMemo(
+    () =>
+      pendingInteractions.find(
+        (entry) =>
+          entry?.awaitingResponseFrom === myPID &&
+          entry?.toPlayer !== myPID &&
+          (entry?.action?.type === "RENT_REQUEST" ||
+            entry?.action?.type === "BIRTHDAY" ||
+            entry?.action?.type === "DEBT_COLLECTOR")
+      ) ?? null,
+    [myPID, pendingInteractions]
+  );
+  const rentJsnAction = rentJsnInteraction?.action as
+    | { type: "RENT_REQUEST"; color?: string | null }
+    | { type: "BIRTHDAY" }
+    | { type: "DEBT_COLLECTOR" }
+    | undefined;
+  const rentJsnLabel =
+    rentJsnAction?.type === "BIRTHDAY"
+      ? "birthday"
+      : rentJsnAction?.type === "DEBT_COLLECTOR"
+        ? "debt collector"
+        : rentJsnAction?.type === "RENT_REQUEST"
+          ? rentJsnAction.color
+            ? `${formatColor(rentJsnAction.color)} rent`
+            : "rent"
+          : "charge";
+  const rentJsnSubtitle = rentJsnInteraction
+    ? `${displayName(rentJsnInteraction.toPlayer)} played Just Say No against your ${rentJsnLabel}.`
+    : "";
+
+  const dealInteraction = useMemo(
+    () =>
+      pendingInteractions.find(
+        (entry) =>
+          entry?.awaitingResponseFrom === myPID &&
+          (entry?.action?.type === "SLY_DEAL" ||
+            entry?.action?.type === "FORCED_DEAL" ||
+            entry?.action?.type === "DEALBREAKER")
+      ) ?? null,
+    [myPID, pendingInteractions]
+  );
+  const dealAction = dealInteraction?.action as
+    | {
+        type: "SLY_DEAL";
+        requester: string;
+        targetPlayer: string;
+        targetCard: number;
+        receivingAs?: string | null;
+      }
+    | {
+        type: "FORCED_DEAL";
+        requester: string;
+        targetPlayer: string;
+        targetCard: number;
+        requesterCard: number;
+        requesterReceivingAs?: string | null;
+      }
+    | {
+        type: "DEALBREAKER";
+        requester: string;
+        targetPlayer: string;
+        targetSetId: string;
+      }
+    | undefined;
+  const dealType = dealAction?.type ?? null;
+  const dealIsAggressor = dealInteraction?.fromPlayer === myPID;
+
+  const dealTargetCardEntry = useMemo(() => {
+    if (!dealAction) return null;
+    if (dealAction.type === "SLY_DEAL" || dealAction.type === "FORCED_DEAL") {
+      return propertyEntryById.get(dealAction.targetCard) ?? null;
+    }
+    return null;
+  }, [dealAction, propertyEntryById]);
+
+  const dealIncomingCardEntry = useMemo(() => {
+    if (!dealAction) return null;
+    if (dealAction.type === "FORCED_DEAL") {
+      return propertyEntryById.get(dealAction.requesterCard) ?? null;
+    }
+    return null;
+  }, [dealAction, propertyEntryById]);
+
+  const dealTargetSet = useMemo(() => {
+    if (!dealAction || dealAction.type !== "DEALBREAKER") return null;
+    const sets = playerPropertySets[dealAction.targetPlayer] ?? [];
+    return sets.find((set) => set.id === dealAction.targetSetId) ?? null;
+  }, [dealAction, playerPropertySets]);
+
+  const dealNeedsColorChoice =
+    !!dealIncomingCardEntry && needsReceiveColor(dealIncomingCardEntry.card);
+  const dealColorOptions = dealIncomingCardEntry?.card.colors ?? [];
+  const dealResolvedColor = dealIncomingCardEntry
+    ? dealNeedsColorChoice
+      ? dealReceiveColor ??
+        getDefaultReceiveColor(dealIncomingCardEntry.card, dealIncomingCardEntry.setColor)
+      : getDefaultReceiveColor(dealIncomingCardEntry.card, dealIncomingCardEntry.setColor)
+    : null;
+
+  const dealTitle =
+    dealType === "SLY_DEAL"
+      ? "Sly Deal"
+      : dealType === "FORCED_DEAL"
+        ? "Forced Deal"
+        : dealType === "DEALBREAKER"
+          ? "Deal Breaker"
+          : "";
+  const dealSubtitle =
+    dealType === "SLY_DEAL"
+      ? `${displayName(dealAction?.requester)} wants to steal a property from you.`
+      : dealType === "FORCED_DEAL"
+        ? `${displayName(dealAction?.requester)} wants to swap properties with you.`
+        : dealType === "DEALBREAKER"
+          ? `${displayName(dealAction?.requester)} wants to take a completed set.`
+          : "";
+  const canAcceptDeal = !dealNeedsColorChoice || !!dealResolvedColor;
+
+  useEffect(() => {
+    if (!dealInteraction || dealType !== "FORCED_DEAL" || !dealIncomingCardEntry) {
+      setDealReceiveColor(null);
+      return;
+    }
+    const defaultColor = getDefaultReceiveColor(
+      dealIncomingCardEntry.card,
+      dealIncomingCardEntry.setColor
+    );
+    setDealReceiveColor((prev) =>
+      prev && dealIncomingCardEntry.card.colors?.includes(prev) ? prev : defaultColor
+    );
+  }, [dealIncomingCardEntry, dealInteraction, dealType, getDefaultReceiveColor]);
+
+  const acceptDeal = useCallback(() => {
+    if (!dealInteraction || dealIsAggressor) return;
+    const receiveAsColor = dealNeedsColorChoice ? dealResolvedColor ?? null : dealResolvedColor ?? null;
+    wsSend({ type: "AcceptDeal", receiveAsColor });
+  }, [dealInteraction, dealIsAggressor, dealNeedsColorChoice, dealResolvedColor, wsSend]);
 
   const devJsnInteraction = useMemo(
     () =>
@@ -1594,543 +2203,229 @@ const PlayScreen: React.FC = () => {
           )
         : null}
 
-      {isPositioning && (
-        <div className="position-overlay" role="dialog" aria-modal="true" aria-labelledby="position-title">
-          <div className="position-modal">
-            <div className="position-header">
-              <div className="position-title" id="position-title">
-                Position Properties
-              </div>
-              <div className="position-subtitle">
-                Select a card and choose where it should live.
-              </div>
-              <div className="position-note">
-                Ten-color wilds can be repositioned only during your turn (optional).
-              </div>
-            </div>
-            <div className="position-body">
-              <div className="position-section">
-                <div className="position-section-title">Your properties</div>
-                {myPropertySets.length === 0 ? (
-                  <div className="position-empty">No properties in play yet.</div>
-                ) : (
-                  myPropertySets.map((set) => (
-                    <div key={set.id} className="position-set">
-                      <div className="position-set-title">
-                        {formatColor(set.color)}
-                        {set.isComplete ? " (Complete)" : ""}
-                      </div>
-                      <div className="position-set-row">
-                        {set.properties.map((card, idx) => {
-                          const selected =
-                            positioningCard?.card.id === card.id &&
-                            positioningCard?.fromSetId === set.id;
-                          return (
-                            <button
-                              key={`position-card-${set.id}-${card.id}-${idx}`}
-                              type="button"
-                              className={`position-card ${selected ? "selected" : ""}`}
-                              onClick={() => selectPositioningCard(card, set.id)}
-                            >
-                              <img src={assetForCard(card)} alt={card.type} draggable={false} />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="position-section">
-                <div className="position-section-title">Destination</div>
-                {!positioningCard ? (
-                  <div className="position-empty">Choose a card to see valid destinations.</div>
-                ) : (
-                  <>
-                    <div className="position-selected">
-                      Selected card #{positioningCard.card.id}
-                    </div>
-                    <div className="position-targets">
-                      {positioningTargets.existing.map((set) => {
-                        const selected = positionTarget?.toSetId === set.id;
-                        return (
-                          <button
-                            key={`position-target-${set.id}`}
-                            type="button"
-                            className={`position-target ${selected ? "selected" : ""}`}
-                            onClick={() => selectPositionTarget(set.id)}
-                          >
-                            {formatColor(set.color)} set
-                          </button>
-                        );
-                      })}
-                      {positioningTargets.existing.length === 0 && (
-                        <div className="position-empty">
-                          No compatible existing sets.
-                        </div>
-                      )}
-                    </div>
-                    <div className="position-section-title">Start new set</div>
-                    <div className="position-targets">
-                      {positioningTargets.newColors.map((color) => {
-                        const selected =
-                          positionTarget?.toSetId === NEW_PROPERTY_SET_ID &&
-                          positionTarget?.toColor === color;
-                        return (
-                          <button
-                            key={`position-new-${color}`}
-                            type="button"
-                            className={`position-target ${selected ? "selected" : ""}`}
-                            onClick={() => selectPositionTarget(NEW_PROPERTY_SET_ID, color)}
-                          >
-                            New {formatColor(color)} set
-                          </button>
-                        );
-                      })}
-                      {positioningTargets.isRainbow && (
-                        <div className="position-empty">
-                          Ten-color wilds cannot start a new set.
-                        </div>
-                      )}
-                      {!positioningTargets.isRainbow &&
-                        positioningTargets.newColors.length === 0 && (
-                          <div className="position-empty">No new set options.</div>
-                        )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="position-actions">
-              <button
-                type="button"
-                className="position-secondary"
-                onClick={closePositioning}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="position-primary"
-                onClick={confirmPositioning}
-                disabled={!positioningCard || !positionTarget}
-              >
-                Position Card
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PositioningModal
+        isOpen={isPositioning}
+        myPropertySets={myPropertySets}
+        positioningCard={positioningCard}
+        positioningTargets={positioningTargets}
+        positionTarget={positionTarget}
+        newSetId={NEW_PROPERTY_SET_ID}
+        formatColor={formatColor}
+        assetForCard={assetForCard}
+        onSelectCard={selectPositioningCard}
+        onSelectTarget={selectPositionTarget}
+        onClose={closePositioning}
+        onConfirm={confirmPositioning}
+        canConfirm={!!positioningCard && !!positionTarget}
+      />
 
-      {isRenting && rentCard && (
-        <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="rent-title">
-          <div className="rent-modal">
-            <div className="rent-header">
-              <div>
-                <div className="rent-title" id="rent-title">
-                  Charge Rent
-                </div>
-                <div className="rent-subtitle">
-                  Choose a rent color and target to charge.
-                </div>
-              </div>
-              <div className="rent-card-preview">
-                <img src={assetForCard(rentCard)} alt="Rent card" draggable={false} />
-              </div>
-            </div>
-            <div className="rent-body">
-              <div className="rent-section">
-                <div className="rent-section-title">Rent color</div>
-                {rentColorOptions.length === 0 ? (
-                  <div className="rent-empty">
-                    You have no properties that match this rent card.
-                  </div>
-                ) : rentColorOptions.length === 1 ? (
-                  <div className="rent-auto">
-                    Auto-selected: {formatColor(rentColorOptions[0].color)}
-                  </div>
-                ) : (
-                  <div className="rent-options">
-                    {rentColorOptions.map((option) => {
-                      const selected = rentColor === option.color;
-                      return (
-                        <button
-                          key={option.color}
-                          type="button"
-                          className={`rent-option ${selected ? "selected" : ""}`}
-                          onClick={() => selectRentColor(option.color)}
-                        >
-                          {formatColor(option.color)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div className="rent-section">
-                <div className="rent-section-title">Targets</div>
-                <div className="rent-options">
-                  <button
-                    type="button"
-                    className={`rent-option ${rentChargeAllEffective ? "selected" : ""}`}
-                    onClick={() => {
-                      setRentChargeAll(true);
-                      setRentTarget(null);
-                    }}
-                    disabled={!hasRentTargets}
-                  >
-                    All opponents
-                  </button>
-                  <button
-                    type="button"
-                    className={`rent-option ${!rentChargeAllEffective ? "selected" : ""}`}
-                    onClick={() => setRentChargeAll(false)}
-                    disabled={!hasRentTargets || rentRequiresAll}
-                  >
-                    Single opponent
-                  </button>
-                </div>
-                {!rentChargeAllEffective && !rentRequiresAll && (
-                  <div className="rent-options">
-                    {rentTargets.map((pid) => {
-                      const selected = rentTarget === pid;
-                      return (
-                        <button
-                          key={pid}
-                          type="button"
-                          className={`rent-option ${selected ? "selected" : ""}`}
-                          onClick={() => setRentTarget(pid)}
-                        >
-                          {displayName(pid)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {!rentChargeAllEffective && rentTargets.length === 0 && (
-                  <div className="rent-empty">No opponents available.</div>
-                )}
-              </div>
-              <div className="rent-section">
-                <div className="rent-section-title">Double The Rent</div>
-                {!canAddFirstDouble && (
-                  <div className="rent-empty">
-                    Need a Double Rent card and a play remaining.
-                  </div>
-                )}
-                {canAddFirstDouble && rentDoublers.length === 0 && (
-                  <button
-                    type="button"
-                    className="rent-option"
-                    onClick={addFirstDoubleRent}
-                  >
-                    Apply x2
-                  </button>
-                )}
-                {rentDoublers.length === 1 && (
-                  <div className="rent-double-row">
-                    <span className="rent-double-tag">Multiplier x{rentMultiplier}</span>
-                    <button
-                      type="button"
-                      className="rent-option"
-                      onClick={clearDoubleRent}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-                {rentDoublers.length === 1 && canAddSecondDouble && (
-                  <div className="rent-double-prompt">
-                    <span>Do you want to x4 this rent?</span>
-                    <button
-                      type="button"
-                      className="rent-option"
-                      onClick={addSecondDoubleRent}
-                    >
-                      Add second Double
-                    </button>
-                  </div>
-                )}
-                {rentDoublers.length === 2 && (
-                  <div className="rent-double-row">
-                    <span className="rent-double-tag">Multiplier x4</span>
-                    <button
-                      type="button"
-                      className="rent-option"
-                      onClick={removeSecondDoubleRent}
-                    >
-                      Remove second Double
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="rent-actions">
-              <button type="button" className="rent-secondary" onClick={closeRentMenu}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rent-primary"
-                onClick={confirmRent}
-                disabled={!canConfirmRent}
-              >
-                Charge Rent
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RentModal
+        isOpen={isRenting}
+        rentCard={rentCard}
+        rentColorOptions={rentColorOptions}
+        rentColor={rentColor}
+        rentChargeAllEffective={rentChargeAllEffective}
+        rentRequiresAll={rentRequiresAll}
+        hasRentTargets={hasRentTargets}
+        rentTargets={rentTargets}
+        rentTarget={rentTarget}
+        rentDoublers={rentDoublers}
+        rentMultiplier={rentMultiplier}
+        canAddFirstDouble={canAddFirstDouble}
+        canAddSecondDouble={canAddSecondDouble}
+        canConfirmRent={canConfirmRent}
+        assetForCard={assetForCard}
+        formatColor={formatColor}
+        displayName={displayName}
+        onSelectColor={selectRentColor}
+        onSelectAllTargets={() => {
+          setRentChargeAll(true);
+          setRentTarget(null);
+        }}
+        onSelectSingleTargets={() => setRentChargeAll(false)}
+        onSelectTarget={(pid) => setRentTarget(pid)}
+        onAddFirstDouble={addFirstDoubleRent}
+        onAddSecondDouble={addSecondDoubleRent}
+        onRemoveSecondDouble={removeSecondDoubleRent}
+        onClearDouble={clearDoubleRent}
+        onClose={closeRentMenu}
+        onConfirm={confirmRent}
+      />
 
-      {isDebtCollecting && debtCard && (
-        <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="debt-title">
-          <div className="rent-modal">
-            <div className="rent-header">
-              <div>
-                <div className="rent-title" id="debt-title">
-                  Debt Collector
-                </div>
-                <div className="rent-subtitle">
-                  Choose a target to collect {DEBT_COLLECTOR_PAYMENT_AMOUNT}M.
-                </div>
-              </div>
-              <div className="rent-card-preview">
-                <img src={assetForCard(debtCard)} alt="Debt collector card" draggable={false} />
-              </div>
-            </div>
-            <div className="rent-body">
-              <div className="rent-section">
-                <div className="rent-section-title">Target</div>
-                {hasDebtTargets ? (
-                  <div className="rent-options">
-                    {debtTargets.map((pid) => {
-                      const selected = debtTarget === pid;
-                      return (
-                        <button
-                          key={`debt-${pid}`}
-                          type="button"
-                          className={`rent-option ${selected ? "selected" : ""}`}
-                          onClick={() => setDebtTarget(pid)}
-                        >
-                          {displayName(pid)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rent-empty">No opponents available.</div>
-                )}
-              </div>
-            </div>
-            <div className="rent-actions">
-              <button type="button" className="rent-secondary" onClick={closeDebtCollectorMenu}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rent-primary"
-                onClick={confirmDebtCollector}
-                disabled={!canConfirmDebt}
-              >
-                Collect {DEBT_COLLECTOR_PAYMENT_AMOUNT}M
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DebtCollectorModal
+        isOpen={isDebtCollecting}
+        debtCard={debtCard}
+        debtTargets={debtTargets}
+        debtTarget={debtTarget}
+        hasDebtTargets={hasDebtTargets}
+        displayName={displayName}
+        assetForCard={assetForCard}
+        amount={DEBT_COLLECTOR_PAYMENT_AMOUNT}
+        onSelectTarget={(pid) => setDebtTarget(pid)}
+        onClose={closeDebtCollectorMenu}
+        onConfirm={confirmDebtCollector}
+        canConfirm={canConfirmDebt}
+      />
 
-      {rentCharge && (
-        <div className="charge-overlay" role="dialog" aria-modal="true" aria-labelledby="charge-title">
-          <div className="charge-modal">
-            <div className="charge-header">
-              <div>
-                <div className="charge-title" id="charge-title">
-                  {chargeTitle}
-                </div>
-                <div className="charge-subtitle">
-                  {chargeSubtitle}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="charge-jsn"
-                onClick={playRentJustSayNo}
-                disabled={jsnCards.length === 0}
-              >
-                Just Say No ({jsnCards.length})
-              </button>
-            </div>
-            <div className="charge-body">
-              <div className="charge-section">
-                <div className="charge-section-title">Bank (total {rentBankTotal}M)</div>
-                {myBankCards.length === 0 ? (
-                  <div className="charge-empty">No money in bank.</div>
-                ) : (
-                  <div className="charge-cards">
-                    {myBankCards.map((card) => {
-                      const selected = rentBankSelected.has(card.id);
-                      return (
-                        <button
-                          key={`rent-bank-${card.id}`}
-                          type="button"
-                          className={`charge-card ${selected ? "selected" : ""}`}
-                          onClick={() => toggleRentBankCard(card.id)}
-                          disabled={rentMustPayAll}
-                          aria-pressed={selected}
-                        >
-                          <img src={assetForCard(card)} alt="Bank card" draggable={false} />
-                          <span className="charge-value">{getCardValue(card)}M</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div className="charge-section">
-                <div className="charge-section-title">
-                  Properties (total {rentPropertyTotal}M)
-                </div>
-                {chargePropertyCards.length === 0 ? (
-                  <div className="charge-empty">
-                    {hasNonPayableWilds
-                      ? "Ten-color wilds cannot be used to pay."
-                      : "No properties to pay."}
-                  </div>
-                ) : (
-                  <div className="charge-cards">
-                    {chargePropertyCards.map((card) => {
-                      const selected = rentPropertySelected.has(card.id);
-                      return (
-                        <button
-                          key={`rent-prop-${card.id}`}
-                          type="button"
-                          className={`charge-card ${selected ? "selected" : ""}`}
-                          onClick={() => toggleRentPropertyCard(card.id)}
-                          disabled={rentMustPayAll}
-                          aria-pressed={selected}
-                        >
-                          <img src={assetForCard(card)} alt="Property card" draggable={false} />
-                          <span className="charge-value">{getCardValue(card)}M</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="charge-summary">
-              <div>Selected: {rentSelectedTotal}M</div>
-              <div>Remaining: {rentRemaining}M</div>
-            </div>
-            {rentMustPayAll && (
-              <div className="charge-note">
-                {mustPayAllLabel}
-              </div>
-            )}
-            <div className="charge-actions">
-              <button
-                type="button"
-                className="charge-primary"
-                onClick={submitRentPayment}
-                disabled={!canPayRent}
-              >
-                {chargePayLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ChargeModal
+        isOpen={!!rentCharge}
+        title={chargeTitle}
+        subtitle={chargeSubtitle}
+        payLabel={chargePayLabel}
+        mustPayAllLabel={mustPayAllLabel}
+        jsnCount={jsnCards.length}
+        onPlayJsn={playRentJustSayNo}
+        myBankCards={myBankCards}
+        chargePropertyCards={chargePropertyCards}
+        rentBankTotal={rentBankTotal}
+        rentPropertyTotal={rentPropertyTotal}
+        rentSelectedTotal={rentSelectedTotal}
+        rentRemaining={rentRemaining}
+        rentBankSelected={rentBankSelected}
+        rentPropertySelected={rentPropertySelected}
+        rentMustPayAll={rentMustPayAll}
+        hasNonPayableWilds={hasNonPayableWilds}
+        canPayRent={canPayRent}
+        assetForCard={assetForCard}
+        getCardValue={getCardValue}
+        onToggleBankCard={toggleRentBankCard}
+        onTogglePropertyCard={toggleRentPropertyCard}
+        onSubmit={submitRentPayment}
+      />
 
-      {devJsnInteraction && !rentCharge && (
-        <div className="jsn-overlay" role="dialog" aria-modal="true" aria-labelledby="jsn-title">
-          <div className="jsn-modal">
-            <div className="jsn-header">
-              <div>
-                <div className="jsn-title" id="jsn-title">
-                  Block {devLabel}?
-                </div>
-                <div className="jsn-subtitle">
-                  {displayName(devRequester)} played {devLabel} on a completed set.
-                </div>
-              </div>
-            </div>
-            <div className="jsn-actions">
-              <button
-                type="button"
-                className="jsn-secondary"
-                onClick={() => acceptJustSayNo(devRespondingTo)}
-              >
-                Allow
-              </button>
-              <button
-                type="button"
-                className="jsn-primary"
-                onClick={() => sendJustSayNo(devRespondingTo)}
-                disabled={jsnCards.length === 0}
-              >
-                Just Say No ({jsnCards.length})
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <JsnChainModal
+        isOpen={!!rentJsnInteraction && !rentCharge}
+        title="Just Say No played"
+        subtitle={rentJsnSubtitle}
+        jsnCount={jsnCards.length}
+        onAcceptBlock={() => acceptJustSayNo(rentJsnInteraction?.toPlayer ?? "")}
+        onPlayJsn={() => sendJustSayNo(rentJsnInteraction?.toPlayer ?? "")}
+      />
 
-      {isDiscarding && (
-        <div className="discard-overlay" role="dialog" aria-modal="true" aria-labelledby="discard-title">
-          <div className="discard-modal">
-            <div className="discard-header">
-              <div className="discard-title" id="discard-title">
-                Discard to {MAX_HAND_SIZE}
-              </div>
-              <div className="discard-subtitle">
-                Select {discardNeeded} card{discardNeeded === 1 ? "" : "s"} to discard.
-              </div>
-            </div>
-            <div className="discard-grid">
-              {myHand.map((card, idx) => {
-                const selected = discardSelection.includes(card.id);
-                const selectionFull = discardSelection.length >= discardNeeded;
-                const isProperty = card.type === "PROPERTY";
-                const disabled = isProperty || (!selected && selectionFull);
-                return (
-                  <button
-                    key={`discard-${card.id}-${idx}`}
-                    type="button"
-                    className={`discard-card ${selected ? "selected" : ""}`}
-                    onClick={() => toggleDiscardSelection(card.id)}
-                    disabled={disabled}
-                    aria-pressed={selected}
-                    title={`${card.type}${card.actionType ? `: ${card.actionType}` : ""}`}
-                  >
-                    <img src={assetForCard(card)} alt={card.type} draggable={false} />
-                  </button>
-                );
-              })}
-            </div>
-            <div className="discard-actions">
-              <button
-                type="button"
-                className="discard-secondary"
-                onClick={autoSelectDiscards}
-                disabled={discardNeeded <= 0}
-              >
-                Auto-select {discardNeeded}
-              </button>
-              <button
-                type="button"
-                className="discard-primary"
-                onClick={confirmDiscardAndEndTurn}
-                disabled={!canConfirmDiscard}
-              >
-                Discard & End Turn
-              </button>
-              <button type="button" className="discard-secondary" onClick={cancelDiscard}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DevelopmentJsnModal
+        isOpen={!!devJsnInteraction && !rentCharge}
+        devLabel={devLabel}
+        devRequester={devRequester}
+        jsnCount={jsnCards.length}
+        displayName={displayName}
+        onAllow={() => acceptJustSayNo(devRespondingTo)}
+        onJsn={() => sendJustSayNo(devRespondingTo)}
+      />
+
+      <SlyDealModal
+        isOpen={isSlyDealing}
+        slyCard={slyCard}
+        targets={opponentIncompleteEntries}
+        selectedCardId={slyTargetCardId}
+        needsColorChoice={slyNeedsColorChoice}
+        availableColors={slyAvailableColors}
+        selectedColor={slyResolvedColor}
+        displayName={displayName}
+        formatColor={formatColor}
+        assetForCard={assetForCard}
+        onSelectTarget={selectSlyTarget}
+        onSelectColor={selectSlyColor}
+        onClose={closeSlyDealMenu}
+        onConfirm={confirmSlyDeal}
+        canConfirm={!!slyTargetEntry && (!slyNeedsColorChoice || !!slyResolvedColor)}
+      />
+
+      <ForcedDealModal
+        isOpen={isForcedDealing}
+        forcedCard={forcedCard}
+        giveOptions={myIncompleteEntries}
+        targetOptions={opponentIncompleteEntries}
+        selectedGiveCardId={forcedGiveCardId}
+        selectedTargetCardId={forcedTargetCardId}
+        needsColorChoice={forcedNeedsColorChoice}
+        availableColors={forcedAvailableColors}
+        selectedColor={forcedResolvedColor}
+        displayName={displayName}
+        formatColor={formatColor}
+        assetForCard={assetForCard}
+        onSelectGive={selectForcedGive}
+        onSelectTarget={selectForcedTarget}
+        onSelectColor={selectForcedColor}
+        onClose={closeForcedDealMenu}
+        onConfirm={confirmForcedDeal}
+        canConfirm={
+          !!forcedGiveEntry &&
+          !!forcedTargetEntry &&
+          (!forcedNeedsColorChoice || !!forcedResolvedColor)
+        }
+      />
+
+      <DealBreakerModal
+        isOpen={isDealBreaking}
+        dealBreakerCard={dealBreakerCard}
+        targets={dealBreakerTargets}
+        selectedSetId={dealBreakerTargetSetId}
+        displayName={displayName}
+        formatColor={formatColor}
+        assetForCard={assetForCard}
+        onSelectSet={(setId) => setDealBreakerTargetSetId(setId)}
+        onClose={closeDealBreakerMenu}
+        onConfirm={confirmDealBreaker}
+        canConfirm={!!dealBreakerTargetSetId}
+      />
+
+      <DevelopmentModal
+        isOpen={isDeveloping}
+        developmentCard={developmentCard}
+        developmentLabel={developmentCard ? formatActionLabel(developmentCard.actionType) : "Development"}
+        eligibleSets={
+          developmentCard?.actionType === "HOTEL" ? hotelTargets : houseTargets
+        }
+        selectedSetId={developmentTargetSetId}
+        formatColor={formatColor}
+        assetForCard={assetForCard}
+        onSelectSet={(setId) => setDevelopmentTargetSetId(setId)}
+        onClose={closeDevelopmentMenu}
+        onConfirm={confirmDevelopment}
+        canConfirm={!!developmentTargetSetId}
+      />
+
+      <DealResponseModal
+        isOpen={!!dealInteraction && !dealIsAggressor && !rentCharge}
+        title={dealTitle}
+        subtitle={dealSubtitle}
+        jsnCount={jsnCards.length}
+        targetLabel={dealType === "DEALBREAKER" ? "Set being stolen" : "Card you lose"}
+        targetCard={dealTargetCardEntry?.card ?? null}
+        targetSetCards={dealType === "DEALBREAKER" ? dealTargetSet?.properties ?? [] : []}
+        incomingCard={dealIncomingCardEntry?.card ?? null}
+        colorOptions={dealNeedsColorChoice ? dealColorOptions : []}
+        selectedColor={dealResolvedColor}
+        formatColor={formatColor}
+        assetForCard={assetForCard}
+        onSelectColor={(color) => setDealReceiveColor(color)}
+        onPlayJsn={() => sendJustSayNo()}
+        onAccept={acceptDeal}
+        canAccept={canAcceptDeal}
+      />
+
+      <JsnChainModal
+        isOpen={!!dealInteraction && dealIsAggressor && !rentCharge}
+        title="Just Say No played"
+        subtitle={`${displayName(dealInteraction?.toPlayer)} played Just Say No against your ${dealTitle}.`}
+        jsnCount={jsnCards.length}
+        onAcceptBlock={() => acceptJustSayNo(dealInteraction?.toPlayer ?? "")}
+        onPlayJsn={() => sendJustSayNo(dealInteraction?.toPlayer ?? "")}
+      />
+
+      <DiscardModal
+        isOpen={isDiscarding}
+        maxHandSize={MAX_HAND_SIZE}
+        discardNeeded={discardNeeded}
+        myHand={myHand}
+        discardSelection={discardSelection}
+        canConfirmDiscard={canConfirmDiscard}
+        assetForCard={assetForCard}
+        onToggleSelection={toggleDiscardSelection}
+        onAutoSelect={autoSelectDiscards}
+        onConfirm={confirmDiscardAndEndTurn}
+        onCancel={cancelDiscard}
+      />
 
       {/* Inline property color picker / bank action */}
       {menuCard && (
@@ -2222,6 +2517,77 @@ const PlayScreen: React.FC = () => {
                   onClick={playDoubleRentSelected}
                 >
                   Double The Rent
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "SLY_DEAL" && (
+                <button
+                  className="bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0 || !hasSlyTargets}
+                  onClick={() => openSlyDealMenu(menuCard)}
+                >
+                  Sly Deal
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "FORCED_DEAL" && (
+                <button
+                  className="bg-teal-600 hover:bg-teal-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0 || !hasForcedTargets}
+                  onClick={() => openForcedDealMenu(menuCard)}
+                >
+                  Forced Deal
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "DEAL_BREAKER" && (
+                <button
+                  className="bg-violet-600 hover:bg-violet-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0 || !hasDealBreakerTargets}
+                  onClick={() => openDealBreakerMenu(menuCard)}
+                >
+                  Deal Breaker
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "HOUSE" && (
+                <button
+                  className="bg-lime-600 hover:bg-lime-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0 || !hasHouseTargets}
+                  onClick={() => openDevelopmentMenu(menuCard)}
+                >
+                  Place House
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "HOTEL" && (
+                <button
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0 || !hasHotelTargets}
+                  onClick={() => openDevelopmentMenu(menuCard)}
+                >
+                  Place Hotel
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "JUST_SAY_NO" && (
+                <button
+                  className="bg-rose-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled
+                >
+                  Just Say No (use when targeted)
                 </button>
               )}
           </div>

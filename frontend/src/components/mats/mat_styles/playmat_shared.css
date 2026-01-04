@@ -160,21 +160,20 @@
   align-items: center;
   justify-content: center;
   justify-self: center;
-  top: 50%;
   width: 100%;
   min-width: 0;
 }
 
 .discard-pile {
+  top: 50%;
   width: clamp(120px, 16vw, 219px);
   height: clamp(160px, 20vw, 316px);
   position: relative;
 }
 
 .discard-pile img {
-  top: -26%;
-  width: 45%;
-  height: 45%;
+  width: 43%;
+  height: 43%;
   object-fit: scale-down;
   display: block;
   border-radius: 10px;
