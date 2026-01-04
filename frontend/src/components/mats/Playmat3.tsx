@@ -102,17 +102,26 @@ const Playmat3: React.FC<PlaymatProps> = ({
       <img className="backdrop" src={backdrop} alt="3-player backdrop" />
 
       <div className="mat-stage">
-        <div className="player-1-space">
+        <div className="player-1-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p1)}
+          </div>
           {renderProperties(pidMap.p1, "p1", pidMap.p1 === myPID ? "me" : "opponent")}
           {renderBank(pidMap.p1)}
         </div>
 
-        <div className="player-2-space">
+        <div className="player-2-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p2)}
+          </div>
           {renderProperties(pidMap.p2, "p2", "opponent")}
           {renderBank(pidMap.p2)}
         </div>
 
-        <div className="player-3-space">
+        <div className="player-3-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p3)}
+          </div>
           {renderProperties(pidMap.p3, "p3", "opponent")}
           {renderBank(pidMap.p3)}
         </div>

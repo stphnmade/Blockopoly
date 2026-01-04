@@ -104,27 +104,42 @@ const Playmat5: React.FC<PlaymatProps> = ({
       <img className="backdrop" src={backdrop} alt="5-player backdrop" />
 
       <div className="mat-stage">
-        <div className="player-1-space">
+        <div className="player-1-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p1)}
+          </div>
           {renderProperties(pidMap.p1, "p1", "bottom")}
           {renderBank(pidMap.p1)}
         </div>
 
-        <div className="player-2-space">
+        <div className="player-2-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p2)}
+          </div>
           {renderProperties(pidMap.p2, "p2", "left")}
           {renderBank(pidMap.p2)}
         </div>
 
-        <div className="player-3-space">
+        <div className="player-3-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p3)}
+          </div>
           {renderProperties(pidMap.p3, "p3", "right")}
           {renderBank(pidMap.p3)}
         </div>
 
-        <div className="player-4-space">
+        <div className="player-4-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p4)}
+          </div>
           {renderProperties(pidMap.p4, "p4", "top")}
           {renderBank(pidMap.p4)}
         </div>
 
-        <div className="player-5-space">
+        <div className="player-5-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p5)}
+          </div>
           {renderProperties(pidMap.p5, "p5", "top")}
           {renderBank(pidMap.p5)}
         </div>

@@ -110,7 +110,10 @@ const Playmat2: React.FC<PlaymatProps> = ({
 
       <div className="mat-stage">
         {/* -------- Player 1 area -------------------------------------- */}
-        <div className="player-1-space">
+        <div className="player-1-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p1)}
+          </div>
           <div
             className={`property-collection-zone droppable ${
               p1PropsOver ? "is-over" : ""
@@ -150,7 +153,10 @@ const Playmat2: React.FC<PlaymatProps> = ({
         </div>
 
         {/* -------- Player 2 area -------------------------------------- */}
-        <div className="player-2-space">
+        <div className="player-2-space player-space">
+          <div className="player-name-tag" aria-hidden>
+            {nameFor(pidMap.p2)}
+          </div>
             <div
               className={`player-2-property-collection-zone droppable ${
               p2PropsOver ? "is-over" : ""

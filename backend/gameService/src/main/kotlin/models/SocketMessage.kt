@@ -110,3 +110,7 @@ data class CardDiscardedMessage(val playerId: String, val cardId: Int, val remai
 @Serializable
 @SerialName("PROPERTY_MOVED")
 data class PropertyMovedMessage(val playerId: String, val cardId: Int, val fromSetId: String?, val toSetId: String, val newIdentityIfWild: Color?) : SocketMessage
+
+@Serializable
+@SerialName("ACTION_INVALID")
+data class ActionInvalidMessage(val playerId: String, val action: String, val reason: String) : SocketMessage

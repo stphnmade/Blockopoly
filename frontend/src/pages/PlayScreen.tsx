@@ -126,6 +126,8 @@ type Action =
     };
 
 type ChargeKind = "RENT" | "BIRTHDAY" | "DEBT_COLLECTOR";
+type ToastKind = "info" | "error";
+type Toast = { id: number; message: string; kind: ToastKind };
 
 const GAME_API = import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
 const toWs = (base: string) =>
@@ -162,7 +164,7 @@ const DraggableCard: React.FC<{
   );
 };
 
-type LobbyPlayer = { id: string; name?: string | null };
+type LobbyPlayer = { playerId?: string; id?: string; name?: string | null };
 
 const PlayScreen: React.FC = () => {
   const { roomCode = "" } = useParams();
@@ -179,8 +181,10 @@ const PlayScreen: React.FC = () => {
   );
   const nameById = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const p of lobbyPlayers)
-      if (p?.id && p.name && p.name.trim()) m[p.id] = p.name.trim();
+    for (const p of lobbyPlayers) {
+      const pid = p?.playerId ?? p?.id;
+      if (pid && p.name && p.name.trim()) m[pid] = p.name.trim();
+    }
     if (myPID && myName) m[myPID] = myName;
     return m;
   }, [lobbyPlayers, myPID, myName]);
@@ -231,15 +235,14 @@ const PlayScreen: React.FC = () => {
   const [debtTarget, setDebtTarget] = useState<string | null>(null);
   const [rentBankSelection, setRentBankSelection] = useState<number[]>([]);
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
-  const [rentNotice, setRentNotice] = useState<{
-    message: string;
-  } | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
     // activeCard state removed with drag/drop
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(500);
-  const rentNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const toastIdRef = useRef(0);
 
   const wsUrl = useMemo(
     () =>
@@ -253,6 +256,16 @@ const PlayScreen: React.FC = () => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify(action));
+  }, []);
+
+  const pushToast = useCallback((message: string, kind: ToastKind = "info") => {
+    const id = toastIdRef.current++;
+    setToasts((prev) => [...prev, { id, message, kind }]);
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+      toastTimers.current.delete(id);
+    }, 3200);
+    toastTimers.current.set(id, timer);
   }, []);
 
   const getPendingInteractions = useCallback((pending: unknown) => {
@@ -315,6 +328,37 @@ const PlayScreen: React.FC = () => {
     return value.charAt(0) + value.slice(1).toLowerCase();
   }, []);
 
+  const formatActionLabel = useCallback((actionType?: string | null) => {
+    switch (actionType) {
+      case "PASS_GO":
+        return "Pass Go";
+      case "JUST_SAY_NO":
+        return "Just Say No";
+      case "DEAL_BREAKER":
+        return "Deal Breaker";
+      case "DEBT_COLLECTOR":
+        return "Debt Collector";
+      case "FORCED_DEAL":
+        return "Forced Deal";
+      case "SLY_DEAL":
+        return "Sly Deal";
+      case "BIRTHDAY":
+        return "It's My Birthday";
+      case "HOUSE":
+        return "House";
+      case "HOTEL":
+        return "Hotel";
+      case "DOUBLE_RENT":
+        return "Double Rent";
+      case "WILD_RENT":
+        return "Wild Rent";
+      case "RENT":
+        return "Rent";
+      default:
+        return "Action";
+    }
+  }, []);
+
   const connect = useCallback(() => {
     if (!roomId || !myPID) {
       navigate("/");
@@ -343,6 +387,10 @@ const PlayScreen: React.FC = () => {
           const playerId = payload.playerId as string | undefined;
           const card = payload.card as ServerCard | undefined;
           if (!card?.id) return;
+          if (card.actionType) {
+            const actionLabel = formatActionLabel(card.actionType);
+            pushToast(`${displayName(playerId)} played ${actionLabel}.`, "info");
+          }
           if (playerId === myPID) {
             setMyHand((prev) => prev.filter((c) => c.id !== card.id));
           }
@@ -366,13 +414,7 @@ const PlayScreen: React.FC = () => {
           const message = isSelf
             ? `You played It's My Birthday! Everyone pays ${BIRTHDAY_PAYMENT_AMOUNT}M.`
             : `${displayName(requester)} played It's My Birthday! Everyone pays ${BIRTHDAY_PAYMENT_AMOUNT}M.`;
-          setRentNotice({ message });
-          if (rentNoticeTimer.current) {
-            clearTimeout(rentNoticeTimer.current);
-          }
-          rentNoticeTimer.current = setTimeout(() => {
-            setRentNotice(null);
-          }, 3200);
+          pushToast(message, "info");
           if (requester && requester !== myPID) {
             setRentCharge({
               requesterId: requester,
@@ -392,13 +434,7 @@ const PlayScreen: React.FC = () => {
           const message = isSelf
             ? `You played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`
             : `${displayName(requester)} played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`;
-          setRentNotice({ message });
-          if (rentNoticeTimer.current) {
-            clearTimeout(rentNoticeTimer.current);
-          }
-          rentNoticeTimer.current = setTimeout(() => {
-            setRentNotice(null);
-          }, 3200);
+          pushToast(message, "info");
           if (target && target === myPID) {
             setRentCharge({
               requesterId: requester ?? "",
@@ -420,13 +456,7 @@ const PlayScreen: React.FC = () => {
           const message = `${displayName(requester)} charges ${rentLabel}${
             targetLabel ? ` from ${targetLabel}` : ""
           }`;
-          setRentNotice({ message });
-          if (rentNoticeTimer.current) {
-            clearTimeout(rentNoticeTimer.current);
-          }
-          rentNoticeTimer.current = setTimeout(() => {
-            setRentNotice(null);
-          }, 3200);
+          pushToast(message, "info");
           if (targets.includes(myPID)) {
             const amount =
               typeof payload.amount === "number"
@@ -439,6 +469,58 @@ const PlayScreen: React.FC = () => {
               kind: "RENT",
             });
           }
+          return;
+        }
+        if ((msg as any).type === "ACTION_INVALID") {
+          const payload = msg as any;
+          const action = payload.action as string | undefined;
+          const reason = payload.reason as string | undefined;
+          const playerId = payload.playerId as string | undefined;
+          const actionLabel = action ? formatActionLabel(action) : "Action";
+          const message = reason
+            ? reason
+            : `${displayName(playerId)} attempted an invalid ${actionLabel}.`;
+          pushToast(message, "error");
+          return;
+        }
+        if ((msg as any).type === "JUST_SAY_NO") {
+          const payload = msg as any;
+          const playerId = payload.playerId as string | undefined;
+          const respondingTo = payload.respondingTo as string | undefined;
+          const message = `${displayName(playerId)} played Just Say No${respondingTo ? ` against ${displayName(respondingTo)}` : ""}.`;
+          pushToast(message, "info");
+          return;
+        }
+        if ((msg as any).type === "SLY_DEAL") {
+          const payload = msg as any;
+          const requester = payload.requester as string | undefined;
+          const targetPlayer = payload.targetPlayer as string | undefined;
+          const message = `${displayName(requester)} played Sly Deal on ${displayName(targetPlayer)}.`;
+          pushToast(message, "info");
+          return;
+        }
+        if ((msg as any).type === "FORCED_DEAL") {
+          const payload = msg as any;
+          const requester = payload.requester as string | undefined;
+          const targetPlayer = payload.targetPlayer as string | undefined;
+          const message = `${displayName(requester)} played Forced Deal on ${displayName(targetPlayer)}.`;
+          pushToast(message, "info");
+          return;
+        }
+        if ((msg as any).type === "DEALBREAKER") {
+          const payload = msg as any;
+          const requester = payload.requester as string | undefined;
+          const targetPlayer = payload.targetPlayer as string | undefined;
+          const message = `${displayName(requester)} played Deal Breaker on ${displayName(targetPlayer)}.`;
+          pushToast(message, "info");
+          return;
+        }
+        if ((msg as any).type === "DEVELOPMENT_ADDED") {
+          const payload = msg as any;
+          const dev = payload.development as ServerCard | undefined;
+          const actionLabel = formatActionLabel(dev?.actionType);
+          const message = `${actionLabel} added to a completed set.`;
+          pushToast(message, "info");
           return;
         }
         // Handle server PATCH frames with event array (optimistic updates)
@@ -559,8 +641,15 @@ const PlayScreen: React.FC = () => {
   const discardNeeded = Math.max(0, discardableHand.length - MAX_HAND_SIZE);
   const canConfirmDiscard = discardNeeded > 0 && discardSelection.length === discardNeeded;
 
+  const lobbyOrder = useMemo(
+    () =>
+      lobbyPlayers
+        .map((p) => p.playerId ?? p.id)
+        .filter((pid): pid is string => Boolean(pid)),
+    [lobbyPlayers]
+  );
   const orderedPids = (
-    game?.playerOrder?.length ? game.playerOrder : lobbyPlayers.map((p) => p.id)
+    game?.playerOrder?.length ? game.playerOrder : lobbyOrder
   ).slice(0, 5);
   const rotatedPids = useMemo(() => {
     if (!myPID || !orderedPids.includes(myPID)) return orderedPids;
@@ -598,7 +687,12 @@ const PlayScreen: React.FC = () => {
     if (!game?.playerState) return m;
     for (const pid of Object.keys(game.playerState)) {
       const ps = game.playerState[pid];
-      const bankCards = (ps.bank ?? []).filter((card) => card.type === "MONEY");
+      const bankCards = (ps.bank ?? []).filter(
+        (card) =>
+          card.type === "MONEY" ||
+          card.type === "GENERAL_ACTION" ||
+          card.type === "RENT_ACTION"
+      );
       const bankTotal = bankCards.reduce(
         (sum, card) => sum + (typeof card.value === "number" ? card.value : 0),
         0
@@ -639,7 +733,10 @@ const PlayScreen: React.FC = () => {
   const myBankCards = useMemo(
     () =>
       (game?.playerState?.[myPID]?.bank ?? []).filter(
-        (card) => card.type === "MONEY"
+        (card) =>
+          card.type === "MONEY" ||
+          card.type === "GENERAL_ACTION" ||
+          card.type === "RENT_ACTION"
       ),
     [game?.playerState, myPID]
   );
@@ -798,10 +895,6 @@ const PlayScreen: React.FC = () => {
     if (isPositioning) return;
     if (isRenting) return;
     if (isDebtCollecting) return;
-    if (card.type === "RENT_ACTION") {
-      openRentMenu(card);
-      return;
-    }
     setMenuCard(card);
     if (card.type === "PROPERTY") {
       const colors = card.colors ?? [];
@@ -811,7 +904,11 @@ const PlayScreen: React.FC = () => {
 
   const bankSelected = () => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
-    if (menuCard.type === "MONEY") {
+    if (
+      menuCard.type === "MONEY" ||
+      menuCard.type === "GENERAL_ACTION" ||
+      menuCard.type === "RENT_ACTION"
+    ) {
       wsSend({ type: "PlayMoney", id: menuCard.id });
     }
     setMenuCard(null);
@@ -1237,9 +1334,8 @@ const PlayScreen: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      if (rentNoticeTimer.current) {
-        clearTimeout(rentNoticeTimer.current);
-      }
+      toastTimers.current.forEach((timer) => clearTimeout(timer));
+      toastTimers.current.clear();
     };
   }, []);
 
@@ -1313,13 +1409,20 @@ const PlayScreen: React.FC = () => {
           playerCardMap={playerCardMap}
           cardImageForId={(id) => cardAssetMap[id] ?? cardBack}
         />
-
-        {rentNotice && (
-          <div className="rent-notice" role="status" aria-live="polite">
-            {rentNotice.message}
-          </div>
-        )}
       </div>
+
+      {toasts.length > 0 && (
+        <div className="toast-stack" role="status" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`toast ${toast.kind}`}>
+              <span className="toast-icon" aria-hidden>
+                !
+              </span>
+              <span className="toast-message">{toast.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Actions: the End Turn button is rendered as a portal into document.body
         so it centers relative to the viewport */}
@@ -1384,6 +1487,9 @@ const PlayScreen: React.FC = () => {
               </div>
               <div className="position-subtitle">
                 Select a card and choose where it should live.
+              </div>
+              <div className="position-note">
+                Ten-color wilds can be repositioned only during your turn (optional).
               </div>
             </div>
             <div className="position-body">
@@ -1832,7 +1938,9 @@ const PlayScreen: React.FC = () => {
             </span>
           </div>
           <div className="card-menu-row">
-            {menuCard.type === "MONEY" && (
+            {(menuCard.type === "MONEY" ||
+              menuCard.type === "GENERAL_ACTION" ||
+              menuCard.type === "RENT_ACTION") && (
               <button
                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 
                            text-white font-medium px-4 py-2 rounded-lg 
@@ -1840,7 +1948,7 @@ const PlayScreen: React.FC = () => {
                 disabled={!isMyTurn || playsLeft <= 0}
                 onClick={bankSelected}
               >
-                Bank
+                Bank ({getCardValue(menuCard)}M)
               </button>
             )}
             {menuCard.type === "PROPERTY" && !colorChoices && (
@@ -1852,6 +1960,17 @@ const PlayScreen: React.FC = () => {
                 onClick={() => playPropertySelected()}
               >
                 Play as Property
+              </button>
+            )}
+            {menuCard.type === "RENT_ACTION" && (
+              <button
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                disabled={!isMyTurn || playsLeft <= 0}
+                onClick={() => openRentMenu(menuCard)}
+              >
+                Charge Rent
               </button>
             )}
             {menuCard.type === "GENERAL_ACTION" &&

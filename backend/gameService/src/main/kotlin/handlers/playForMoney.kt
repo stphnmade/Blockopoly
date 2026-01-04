@@ -14,7 +14,7 @@ suspend fun playForMoney(room: DealGame, game: MutableStateFlow<GameState>, play
         if (current.pendingInteractions.isNotEmpty()) return current
         val playerState = current.playerState[playerId] ?: return current
         val card = cardMapping[playMoney.id] ?: return current
-        if (card !is Card.Money) return current
+        if (card !is Card.Money && card !is Card.ActionCard) return current
 
         if (current.playerAtTurn != playerId ||
             current.cardsLeftToPlay <= 0 ||

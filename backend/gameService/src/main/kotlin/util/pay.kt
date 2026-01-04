@@ -74,9 +74,9 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
     val playerState = gameState.playerState[giver] ?: return PayResponse()
     val receiverPlayerState = gameState.playerState[receiver] ?: return PayResponse()
 
-    val bankMoney = playerState.bank.filterIsInstance<Card.Money>()
-    val bankMoneyById = bankMoney.associateBy { it.id }
-    val bankTotal = bankMoney.sumOf { it.value }
+    val bankCardsInBank = playerState.bank.filter { it is Card.Money || it is Card.ActionCard }
+    val bankById = bankCardsInBank.associateBy { it.id }
+    val bankTotal = bankCardsInBank.sumOf { it.value ?: 0 }
 
     val propertyCards = playerState.propertyCollection.collection.values
         .flatMap { it.properties }
@@ -89,12 +89,16 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
         return if (paymentCards.isEmpty()) PayResponse(true) else PayResponse()
     }
 
-    val paymentMoney = mutableListOf<Card.Money>()
+    val paymentMoney = mutableListOf<Card>()
     val paymentProperties = mutableListOf<Card.Property>()
     paymentCards.forEach { card ->
         when (card) {
             is Card.Money -> {
-                if (!bankMoneyById.containsKey(card.id)) return PayResponse()
+                if (!bankById.containsKey(card.id)) return PayResponse()
+                paymentMoney.add(card)
+            }
+            is Card.ActionCard -> {
+                if (!bankById.containsKey(card.id)) return PayResponse()
                 paymentMoney.add(card)
             }
             is Card.Property -> {
@@ -105,12 +109,12 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
         }
     }
 
-    val paymentMoneyTotal = paymentMoney.sumOf { it.value }
+    val paymentMoneyTotal = paymentMoney.sumOf { it.value ?: 0 }
     val paymentPropertyTotal = paymentProperties.sumOf { it.value ?: 0 }
     val paymentTotal = paymentMoneyTotal + paymentPropertyTotal
 
     if (totalValue <= amountRequested) {
-        if (paymentMoney.size != bankMoney.size) return PayResponse()
+        if (paymentMoney.size != bankCardsInBank.size) return PayResponse()
         if (paymentProperties.size != propertyCards.size) return PayResponse()
     } else {
         if (paymentTotal < amountRequested) return PayResponse()

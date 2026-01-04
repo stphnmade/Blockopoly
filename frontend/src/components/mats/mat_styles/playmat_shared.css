@@ -48,6 +48,34 @@
   min-width: 0;
 }
 
+.player-space {
+  position: relative;
+}
+
+.player-name-tag {
+  position: absolute;
+  top: clamp(4px, 0.8vw, 10px);
+  left: clamp(6px, 1vw, 12px);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.6);
+  color: #f8fafc;
+  font-size: clamp(10px, 1vw, 12px);
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.player-space:hover .player-name-tag,
+.player-space:focus-within .player-name-tag {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .property-collection-zone,
 .player-2-property-collection-zone {
   flex: 0 1 auto;

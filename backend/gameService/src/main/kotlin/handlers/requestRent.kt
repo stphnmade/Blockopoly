@@ -7,6 +7,7 @@ import com.gameservice.models.ActionType
 import com.gameservice.models.Card
 import com.gameservice.models.Color
 import com.gameservice.models.GameState
+import com.gameservice.models.ActionInvalidMessage
 import com.gameservice.models.PendingInteraction
 import com.gameservice.models.RentRequestMessage
 import com.gameservice.models.RequestRent
@@ -20,6 +21,10 @@ suspend fun requestRent(room: DealGame, game: MutableStateFlow<GameState>, playe
         if (rentCard !is Card.Rent) return current
         val playerState = current.playerState[playerId] ?: return current
         val numCardsConsumed = 1 + rentRequest.rentDoublers.size
+        if (current.playerAtTurn != playerId || current.cardsLeftToPlay < numCardsConsumed ||
+            !current.isCardInHand(playerId, rentCard)) {
+            return current
+        }
         val doublers = rentRequest.rentDoublers.map {
             val doubleRentCard = cardMapping[it]
             if (doubleRentCard !is Card.ActionCard || doubleRentCard.actionType != ActionType.DOUBLE_RENT) {
@@ -28,21 +33,31 @@ suspend fun requestRent(room: DealGame, game: MutableStateFlow<GameState>, playe
             return@map doubleRentCard
         }
         if (doublers.any { !current.isCardInHand(playerId, it) }) return current
-        if (current.playerAtTurn != playerId || current.cardsLeftToPlay < numCardsConsumed ||
-            !current.isCardInHand(playerId, rentCard)) {
-            return current
-        }
-        if (rentRequest.target != null) {
-            if (rentRequest.target == playerId) return current
-            if (current.playerState[rentRequest.target] == null) return current
-        }
-        if (rentCard.actionType == ActionType.RENT && rentRequest.target != null) {
-            return current
+
+        val invalidReason = when {
+            rentRequest.target == playerId -> "Invalid rent: you cannot target yourself."
+            rentRequest.target != null && current.playerState[rentRequest.target] == null ->
+                "Invalid rent: target player not found."
+            rentCard.actionType == ActionType.RENT && rentRequest.target != null ->
+                "Invalid rent: this rent card must target all opponents."
+            playerState.getPropertySet(rentRequest.rentingSetId) == null ->
+                "Invalid rent: you do not own the selected property set."
+            else -> null
         }
 
-        val chosenColor = resolveRentColor(playerState.getPropertySet(rentRequest.rentingSetId)?.color, rentRequest.rentColor)
-            ?: return current
-        if (!rentCard.colors.contains(chosenColor)) return current
+        val chosenColor = resolveRentColor(
+            playerState.getPropertySet(rentRequest.rentingSetId)?.color,
+            rentRequest.rentColor
+        )
+        if (invalidReason != null || chosenColor == null || !rentCard.colors.contains(chosenColor)) {
+            val reason = invalidReason
+                ?: "Invalid rent: no matching property set for this rent card."
+            val cardsUsed = listOf<Card.ActionCard>(rentCard) + doublers
+            playerState.hand.removeIf { it.id in cardsUsed.map { card -> card.id } }
+            current.discardPile.addAll(cardsUsed)
+            room.sendBroadcast(ActionInvalidMessage(playerId, "Rent", reason))
+            return@updateAndGet current.copy(cardsLeftToPlay = current.cardsLeftToPlay - numCardsConsumed)
+        }
         val rentTiers = colorToRent[chosenColor] ?: return current
         val propertyCount = playerState.propertyCollection.collection.values
             .filter { it.color == chosenColor }
@@ -60,7 +75,19 @@ suspend fun requestRent(room: DealGame, game: MutableStateFlow<GameState>, playe
         } else {
             listOf(rentRequest.target)
         }
-        if (targets.isEmpty()) return current
+        if (targets.isEmpty()) {
+            val cardsUsed = listOf<Card.ActionCard>(rentCard) + doublers
+            playerState.hand.removeIf { it.id in cardsUsed.map { card -> card.id } }
+            current.discardPile.addAll(cardsUsed)
+            room.sendBroadcast(
+                ActionInvalidMessage(
+                    playerId,
+                    "Rent",
+                    "Invalid rent: no opponents available."
+                )
+            )
+            return@updateAndGet current.copy(cardsLeftToPlay = current.cardsLeftToPlay - numCardsConsumed)
+        }
 
         val cardsUsed = listOf(rentCard.id) + rentRequest.rentDoublers
         val rentRequestMessage = RentRequestMessage(
