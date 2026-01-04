@@ -52,6 +52,10 @@ data class AcceptJsn(val respondingTo: String) : GameAction
 class PassGo(val id: Int) : GameAction
 
 @Serializable
+@SerialName("PlayDoubleRent")
+data class PlayDoubleRent(val id: Int) : GameAction
+
+@Serializable
 @SerialName("DebtCollect")
 data class DebtCollect(val id: Int, val target: String) : GameAction
 

@@ -21,6 +21,8 @@ export interface PropertySetVM {
   currentCount?: number;
   rentValue?: number;
   overage?: number;
+  hasHouse?: boolean;
+  hasHotel?: boolean;
 }
 
 export interface PlayerPropertyGridVM {

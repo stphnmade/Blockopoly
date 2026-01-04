@@ -120,6 +120,8 @@ export function buildPlayerPropertyGridVM(
     const developmentValue =
       (val && typeof val.house?.value === "number" ? val.house.value : 0) +
       (val && typeof val.hotel?.value === "number" ? val.hotel.value : 0);
+    const hasHouse = Boolean(val?.house);
+    const hasHotel = Boolean(val?.hotel);
     const currentCount = cards.length;
     const isComplete = computeIsComplete(requiredCount, currentCount, val?.isComplete);
     const rentValue = computeRentValue(meta, currentCount, developmentValue);
@@ -135,6 +137,8 @@ export function buildPlayerPropertyGridVM(
       currentCount,
       rentValue,
       overage,
+      hasHouse,
+      hasHotel,
     };
     sets.push(vm);
   }

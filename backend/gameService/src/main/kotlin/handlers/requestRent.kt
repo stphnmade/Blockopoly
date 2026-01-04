@@ -35,6 +35,8 @@ suspend fun requestRent(room: DealGame, game: MutableStateFlow<GameState>, playe
         if (doublers.any { !current.isCardInHand(playerId, it) }) return current
 
         val invalidReason = when {
+            rentRequest.rentDoublers.size > 2 ->
+                "Invalid rent: maximum of 2 Double The Rent cards."
             rentRequest.target == playerId -> "Invalid rent: you cannot target yourself."
             rentRequest.target != null && current.playerState[rentRequest.target] == null ->
                 "Invalid rent: target player not found."

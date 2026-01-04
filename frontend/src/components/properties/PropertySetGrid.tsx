@@ -65,6 +65,16 @@ export default function PropertySetGrid({
                   : undefined
               }
             >
+              {(set.hasHouse || set.hasHotel) && (
+                <div className="prop-dev-badges" aria-hidden>
+                  {set.hasHouse && (
+                    <span className="prop-dev-icon house active" title="House" />
+                  )}
+                  {set.hasHotel && (
+                    <span className="prop-dev-icon hotel active" title="Hotel" />
+                  )}
+                </div>
+              )}
               <div className="prop-slot-stack">
                 <SetStackCell set={set} onOpenSet={handleOpenSet} enableDnD={enableDnD} />
               </div>

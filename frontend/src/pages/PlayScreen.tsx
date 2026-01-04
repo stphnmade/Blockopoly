@@ -105,6 +105,7 @@ type Action =
   | { type: "Discard"; cardId: number }
   | { type: "PassGo"; id: number }
   | { type: "Birthday"; id: number }
+  | { type: "PlayDoubleRent"; id: number }
   | { type: "DebtCollect"; id: number; target: string }
   | { type: "AcceptCharge"; payment: number[] }
   | { type: "JustSayNo"; ids: number[]; respondingTo?: string | null }
@@ -235,6 +236,7 @@ const PlayScreen: React.FC = () => {
   const [debtTarget, setDebtTarget] = useState<string | null>(null);
   const [rentBankSelection, setRentBankSelection] = useState<number[]>([]);
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
+  const [rentDoublers, setRentDoublers] = useState<number[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
     // activeCard state removed with drag/drop
 
@@ -349,7 +351,7 @@ const PlayScreen: React.FC = () => {
       case "HOTEL":
         return "Hotel";
       case "DOUBLE_RENT":
-        return "Double Rent";
+        return "Double The Rent";
       case "WILD_RENT":
         return "Wild Rent";
       case "RENT":
@@ -831,7 +833,7 @@ const PlayScreen: React.FC = () => {
 
   const canConfirmRent =
     isMyTurn &&
-    playsLeft > 0 &&
+    playsLeft >= 1 + rentDoublers.length &&
     !!rentCard &&
     !!effectiveRentColor &&
     !!effectiveRentSetId &&
@@ -888,6 +890,17 @@ const PlayScreen: React.FC = () => {
       ),
     [myHand]
   );
+  const doubleRentCards = useMemo(
+    () =>
+      myHand.filter(
+        (card) => card.type === "GENERAL_ACTION" && card.actionType === "DOUBLE_RENT"
+      ),
+    [myHand]
+  );
+  const maxRentDoubles = Math.min(2, Math.max(0, playsLeft - 1), doubleRentCards.length);
+  const canAddFirstDouble = maxRentDoubles >= 1;
+  const canAddSecondDouble = maxRentDoubles >= 2;
+  const rentMultiplier = rentDoublers.length > 0 ? 1 << rentDoublers.length : 1;
   /** Click-menu actions */
   const onCardClick = (card: ServerCard) => {
     if (!isMyTurn) return;
@@ -927,6 +940,14 @@ const PlayScreen: React.FC = () => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
     if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "BIRTHDAY") return;
     wsSend({ type: "Birthday", id: menuCard.id });
+    setMenuCard(null);
+    setColorChoices(null);
+  }, [isMyTurn, menuCard, playsLeft, wsSend]);
+
+  const playDoubleRentSelected = useCallback(() => {
+    if (!menuCard || !isMyTurn || playsLeft <= 0) return;
+    if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "DOUBLE_RENT") return;
+    wsSend({ type: "PlayDoubleRent", id: menuCard.id });
     setMenuCard(null);
     setColorChoices(null);
   }, [isMyTurn, menuCard, playsLeft, wsSend]);
@@ -1010,6 +1031,7 @@ const PlayScreen: React.FC = () => {
     setRentSetId(null);
     setRentChargeAll(true);
     setRentTarget(null);
+    setRentDoublers([]);
   }, [isDiscarding, isMyTurn, isPositioning, playsLeft]);
 
   const closeRentMenu = useCallback(() => {
@@ -1019,6 +1041,32 @@ const PlayScreen: React.FC = () => {
     setRentSetId(null);
     setRentChargeAll(true);
     setRentTarget(null);
+    setRentDoublers([]);
+  }, []);
+
+  const addFirstDoubleRent = useCallback(() => {
+    if (!canAddFirstDouble) return;
+    const next = doubleRentCards.find((card) => !rentDoublers.includes(card.id));
+    if (!next) return;
+    setRentDoublers([next.id]);
+  }, [canAddFirstDouble, doubleRentCards, rentDoublers]);
+
+  const addSecondDoubleRent = useCallback(() => {
+    if (!canAddSecondDouble) return;
+    const next = doubleRentCards.find((card) => !rentDoublers.includes(card.id));
+    if (!next) return;
+    setRentDoublers((prev) => {
+      if (prev.includes(next.id)) return prev;
+      return [...prev, next.id].slice(0, 2);
+    });
+  }, [canAddSecondDouble, doubleRentCards, rentDoublers]);
+
+  const removeSecondDoubleRent = useCallback(() => {
+    setRentDoublers((prev) => prev.slice(0, 1));
+  }, []);
+
+  const clearDoubleRent = useCallback(() => {
+    setRentDoublers([]);
   }, []);
 
   const selectRentColor = useCallback(
@@ -1035,10 +1083,12 @@ const PlayScreen: React.FC = () => {
     if (!isMyTurn || playsLeft <= 0) return;
     if (!hasRentTargets) return;
     if (!rentChargeAllEffective && !rentTarget) return;
+    const playsNeeded = 1 + rentDoublers.length;
+    if (playsLeft < playsNeeded) return;
     wsSend({
       type: "RequestRent",
       rentCardId: rentCard.id,
-      rentDoublers: [],
+      rentDoublers,
       rentingSetId: effectiveRentSetId,
       rentColor: effectiveRentColor,
       target: rentChargeAllEffective ? null : rentTarget,
@@ -1054,6 +1104,7 @@ const PlayScreen: React.FC = () => {
     rentCard,
     rentChargeAllEffective,
     rentTarget,
+    rentDoublers,
     wsSend,
   ]);
 
@@ -1241,6 +1292,15 @@ const PlayScreen: React.FC = () => {
       setRentTarget(rentTargets[0]);
     }
   }, [isRenting, rentChargeAll, rentRequiresAll, rentTarget, rentTargets]);
+
+  useEffect(() => {
+    if (!isRenting) return;
+    const allowed = new Set(doubleRentCards.map((card) => card.id));
+    setRentDoublers((prev) => {
+      const filtered = prev.filter((id) => allowed.has(id));
+      return filtered.slice(0, maxRentDoubles);
+    });
+  }, [doubleRentCards, isRenting, maxRentDoubles]);
 
   useEffect(() => {
     if (!isDebtCollecting) return;
@@ -1695,6 +1755,59 @@ const PlayScreen: React.FC = () => {
                   <div className="rent-empty">No opponents available.</div>
                 )}
               </div>
+              <div className="rent-section">
+                <div className="rent-section-title">Double The Rent</div>
+                {!canAddFirstDouble && (
+                  <div className="rent-empty">
+                    Need a Double Rent card and a play remaining.
+                  </div>
+                )}
+                {canAddFirstDouble && rentDoublers.length === 0 && (
+                  <button
+                    type="button"
+                    className="rent-option"
+                    onClick={addFirstDoubleRent}
+                  >
+                    Apply x2
+                  </button>
+                )}
+                {rentDoublers.length === 1 && (
+                  <div className="rent-double-row">
+                    <span className="rent-double-tag">Multiplier x{rentMultiplier}</span>
+                    <button
+                      type="button"
+                      className="rent-option"
+                      onClick={clearDoubleRent}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                {rentDoublers.length === 1 && canAddSecondDouble && (
+                  <div className="rent-double-prompt">
+                    <span>Do you want to x4 this rent?</span>
+                    <button
+                      type="button"
+                      className="rent-option"
+                      onClick={addSecondDoubleRent}
+                    >
+                      Add second Double
+                    </button>
+                  </div>
+                )}
+                {rentDoublers.length === 2 && (
+                  <div className="rent-double-row">
+                    <span className="rent-double-tag">Multiplier x4</span>
+                    <button
+                      type="button"
+                      className="rent-option"
+                      onClick={removeSecondDoubleRent}
+                    >
+                      Remove second Double
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="rent-actions">
               <button type="button" className="rent-secondary" onClick={closeRentMenu}>
@@ -2007,6 +2120,18 @@ const PlayScreen: React.FC = () => {
                   onClick={() => openDebtCollectorMenu(menuCard)}
                 >
                   Debt Collector ({DEBT_COLLECTOR_PAYMENT_AMOUNT}M)
+                </button>
+              )}
+            {menuCard.type === "GENERAL_ACTION" &&
+              menuCard.actionType === "DOUBLE_RENT" && (
+                <button
+                  className="bg-fuchsia-600 hover:bg-fuchsia-700 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+                  disabled={!isMyTurn || playsLeft <= 0}
+                  onClick={playDoubleRentSelected}
+                >
+                  Double The Rent
                 </button>
               )}
           </div>

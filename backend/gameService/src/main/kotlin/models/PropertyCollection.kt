@@ -52,7 +52,7 @@ class PropertyCollection {
     }
 
     fun removeDevelopment(development: Card.Action) : Unit? {
-        if (development.actionType !in arrayOf(ActionType.HOTEL, ActionType.HOTEL)) return null
+        if (development.actionType !in arrayOf(ActionType.HOUSE, ActionType.HOTEL)) return null
         return developmentsToSetId[development.id]?.let { setId ->
             when (development.actionType) {
                 ActionType.HOTEL -> collection[setId]?.hotel = null
@@ -195,7 +195,7 @@ data class PropertySet(val propertySetId: String, val properties: MutableList<Ca
     }
 
     fun addDevelopment(development: Card.Action) : Unit? {
-        if (development.actionType !in arrayOf(ActionType.HOTEL, ActionType.HOTEL)) return null
+        if (development.actionType !in arrayOf(ActionType.HOUSE, ActionType.HOTEL)) return null
         when (development.actionType) {
             ActionType.HOUSE -> {
                 if (house != null) return null

@@ -21,12 +21,16 @@ suspend fun playDevelopment(room: DealGame, game: MutableStateFlow<GameState>, p
             !current.isCardInHand(playerId, card)) return current
         val targetSet = playerState.getPropertySet(action.propertySetId)
         val invalidReason = when {
+            card.actionType == com.gameservice.models.ActionType.HOUSE &&
+                (targetSet == null || !targetSet.isComplete) ->
+                "You need a completed set to place a House."
+            card.actionType == com.gameservice.models.ActionType.HOTEL &&
+                (targetSet == null || !targetSet.isComplete || targetSet.house == null) ->
+                "You need a House on a completed set before adding a Hotel."
             targetSet == null -> "Invalid development: select a valid property set."
             !targetSet.isComplete -> "Invalid development: set must be complete."
             card.actionType == com.gameservice.models.ActionType.HOUSE && targetSet.house != null ->
                 "Invalid development: that set already has a house."
-            card.actionType == com.gameservice.models.ActionType.HOTEL && targetSet.house == null ->
-                "Invalid development: hotels require a house first."
             card.actionType == com.gameservice.models.ActionType.HOTEL && targetSet.hotel != null ->
                 "Invalid development: that set already has a hotel."
             else -> null
