@@ -76,6 +76,15 @@ data class DebtCollectMessage(override val requester: String, val target: String
 data class DevelopmentAddedMessage(val development: Card.Action, val placedOn: String) : SocketMessage
 
 @Serializable
+@SerialName("DEVELOPMENT_REQUEST")
+data class DevelopmentRequestMessage(
+    override val requester: String,
+    val cardId: Int,
+    val propertySetId: String,
+    val developmentType: String
+) : SocketMessage, MultiStepInitiator
+
+@Serializable
 @SerialName("BIRTHDAY")
 data class BirthdayMessage(override val requester: String, val cardId: Int) : SocketMessage, MultiStepInitiator
 

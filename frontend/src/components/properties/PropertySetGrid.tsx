@@ -8,7 +8,7 @@ type Props = {
   sets: PropertySetVM[];
   onOpenSet?: (setKey: string) => void;
   enableDnD?: boolean;
-  orientation?: "top" | "bottom" | "left" | "right";
+  orientation?: "top" | "bottom" | "left" | "right" | "me" | "opponent";
 };
 
 const SLOT_COUNT = 10;
@@ -19,6 +19,8 @@ export default function PropertySetGrid({
   enableDnD,
   orientation = "bottom",
 }: Props) {
+  const orientationClass =
+    orientation === "me" ? "bottom" : orientation === "opponent" ? "top" : orientation;
   const slots: Array<PropertySetVM | null> = [...sets];
   while (slots.length < SLOT_COUNT) slots.push(null);
 
@@ -36,7 +38,7 @@ export default function PropertySetGrid({
   return (
     <>
       <div
-        className={`prop-grid ${orientation}`}
+        className={`prop-grid ${orientationClass}`}
         role="list"
         aria-label="Property Sets"
       >

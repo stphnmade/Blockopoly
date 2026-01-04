@@ -5,7 +5,9 @@ import com.gameservice.DealGame
 import com.gameservice.cardMapping
 import com.gameservice.models.Card
 import com.gameservice.models.DevelopmentAddedMessage
+import com.gameservice.models.DevelopmentRequestMessage
 import com.gameservice.models.GameState
+import com.gameservice.models.PendingInteraction
 import com.gameservice.models.PlayDevelopment
 import com.gameservice.models.ActionInvalidMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +42,24 @@ suspend fun playDevelopment(room: DealGame, game: MutableStateFlow<GameState>, p
             current.discardPile.add(card)
             room.sendBroadcast(ActionInvalidMessage(playerId, card.actionType.name, invalidReason ?: "Invalid development: no valid target."))
             return@updateAndGet current.copy(cardsLeftToPlay = current.cardsLeftToPlay - 1)
+        }
+        val developmentRequest = DevelopmentRequestMessage(
+            requester = playerId,
+            cardId = card.id,
+            propertySetId = action.propertySetId,
+            developmentType = card.actionType.name
+        )
+        current.playerState.keys.forEach { id ->
+            if (id == playerId) return@forEach
+            current.pendingInteractions.add(
+                PendingInteraction(
+                    fromPlayer = playerId,
+                    toPlayer = id,
+                    action = developmentRequest,
+                    initial = listOf(card.id),
+                    awaitingResponseFrom = id,
+                )
+            ) ?: return@updateAndGet current
         }
         room.sendBroadcast(DevelopmentAddedMessage(card, action.propertySetId))
         playerState.hand.removeIf { it.id == card.id }

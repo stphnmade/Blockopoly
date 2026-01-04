@@ -29,7 +29,7 @@ suspend fun acceptDeal(room: DealGame, game: MutableStateFlow<GameState>, player
             is SlyDealMessage -> {
                 val targetCardInstance = cardMapping[request.targetCard] ?: return current
                 if (targetCardInstance !is Card.Property) return current
-                val destination = transferPropertyCard(receiverState, giverState, request.receivingAs, targetCardInstance) ?: return current
+                val destination = transferPropertyCard(current, receiverState, giverState, request.receivingAs, targetCardInstance) ?: return current
                 current.pendingInteractions.remove(interaction)
                 room.sendBroadcast(
                     SlyDealAcceptedMessage(
@@ -46,8 +46,8 @@ suspend fun acceptDeal(room: DealGame, game: MutableStateFlow<GameState>, player
                 val cardToGiveInstance = cardMapping[request.requesterCard] ?: return current
                 if (cardToGiveInstance !is Card.Property) return current
 
-                val requesterDestinationSet = transferPropertyCard(receiverState, giverState, request.requesterReceivingAs, targetCardInstance) ?: return current
-                val targetDestinationSet = transferPropertyCard(giverState, receiverState, action.receiveAsColor, cardToGiveInstance) ?: return current
+                val requesterDestinationSet = transferPropertyCard(current, receiverState, giverState, request.requesterReceivingAs, targetCardInstance) ?: return current
+                val targetDestinationSet = transferPropertyCard(current, giverState, receiverState, action.receiveAsColor, cardToGiveInstance) ?: return current
 
                 current.pendingInteractions.remove(interaction)
                 room.sendBroadcast(
@@ -85,7 +85,8 @@ suspend fun acceptDeal(room: DealGame, game: MutableStateFlow<GameState>, player
     }
 }
 
-fun transferPropertyCard(receiverState: PlayerState, giverState: PlayerState, receiveAs: Color?, card: Card.Property) : String? {
-    giverState.removeProperty(card) ?: return null
+fun transferPropertyCard(gameState: GameState, receiverState: PlayerState, giverState: PlayerState, receiveAs: Color?, card: Card.Property) : String? {
+    val removedDevelopments = giverState.removeProperty(card) ?: return null
+    gameState.discardPile.addAll(removedDevelopments)
     return receiverState.addProperty(card, receiveAs)
 }

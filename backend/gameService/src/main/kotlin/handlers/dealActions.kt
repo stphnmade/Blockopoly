@@ -23,6 +23,20 @@ suspend fun slyDeal(room: DealGame, gameState: MutableStateFlow<GameState>, play
         val playerState = current.playerState[playerId] ?: return current
         val card = cardMapping[action.id] ?: return current
         if (card !is Card.Action || card.actionType != ActionType.SLY_DEAL || !current.isCardInHand(playerId, card) || current.cardsLeftToPlay <= 0) return current
+        val opponentsHaveEligible = current.playerState
+            .filterKeys { it != playerId }
+            .values
+            .any { hasEligibleNonCompleteProperties(it) }
+        if (!opponentsHaveEligible) {
+            return consumeInvalidAction(
+                room,
+                current,
+                playerState,
+                playerId,
+                card,
+                "No eligible properties to steal (cannot steal from completed sets)."
+            )
+        }
         val targetCard = cardMapping[action.targetCard] ?: return current
         if (targetCard !is Card.Property) return current
         val targetPlayer = playerToStealCardFrom(playerId, targetCard, current.playerState) ?: return current
@@ -49,6 +63,30 @@ suspend fun forcedDeal(room: DealGame, gameState: MutableStateFlow<GameState>, p
         val playerState = current.playerState[playerId] ?: return current
         val forcedDealCard = cardMapping[action.id] ?: return current
         if (forcedDealCard !is Card.Action || forcedDealCard.actionType != ActionType.FORCED_DEAL || !current.isCardInHand(playerId, forcedDealCard) || current.cardsLeftToPlay <= 0) return current
+        if (!hasEligibleNonCompleteProperties(playerState)) {
+            return consumeInvalidAction(
+                room,
+                current,
+                playerState,
+                playerId,
+                forcedDealCard,
+                "You need to own a non-complete property to make a swap."
+            )
+        }
+        val targetHasEligible = current.playerState
+            .filterKeys { it != playerId }
+            .values
+            .any { hasEligibleNonCompleteProperties(it) }
+        if (!targetHasEligible) {
+            return consumeInvalidAction(
+                room,
+                current,
+                playerState,
+                playerId,
+                forcedDealCard,
+                "Target has no eligible properties to swap."
+            )
+        }
         val cardToGive = cardMapping[action.cardToGive]
             ?: return consumeInvalidAction(room, current, playerState, playerId, forcedDealCard, "Invalid Forced Deal: select a property to give.")
         if (cardToGive !is Card.Property) {
@@ -97,7 +135,7 @@ suspend fun dealbreaker(room: DealGame, gameState: MutableStateFlow<GameState>, 
 
         val targetPlayerEntry = current.playerState.entries.find { entry ->
             entry.value.getPropertySet(action.targetSetId)?.isComplete == true
-        } ?: return consumeInvalidAction(room, current, playerState, playerId, card, "Invalid Deal Breaker: no completed set available.")
+        } ?: return consumeInvalidAction(room, current, playerState, playerId, card, "Target has no completed sets.")
         if (targetPlayerEntry.key == playerId) {
             return consumeInvalidAction(room, current, playerState, playerId, card, "Invalid Deal Breaker: you cannot target your own sets.")
         }
@@ -131,4 +169,10 @@ private suspend fun consumeInvalidAction(
     current.discardPile.add(card)
     room.sendBroadcast(ActionInvalidMessage(playerId, card.actionType.name, reason))
     return current.copy(cardsLeftToPlay = current.cardsLeftToPlay - 1)
+}
+
+private fun hasEligibleNonCompleteProperties(playerState: com.gameservice.models.PlayerState): Boolean {
+    return playerState.propertyCollection.collection.values.any { set ->
+        !set.isComplete && set.properties.isNotEmpty()
+    }
 }

@@ -71,8 +71,8 @@ suspend fun moveProperty(room: DealGame, game: MutableStateFlow<GameState>, play
         val (wasRemoved, removedDevelopments) = fromSet.removeProperty(propertyToMove)
         if (!wasRemoved) return current
         
-        // Add removed developments to bank
-        removedDevelopments?.forEach { playerState.bank.add(it) }
+        // Discard removed developments when a set becomes incomplete
+        removedDevelopments?.let { current.discardPile.addAll(it) }
         
         // If source set is now empty, remove it, otherwise refresh its mappings
         if (fromSet.isSetEmpty()) {

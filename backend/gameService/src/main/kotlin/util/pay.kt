@@ -45,7 +45,8 @@ fun pay(gameState: GameState, giver: String, receiver: String, payment: List<Int
     paymentCards.forEach { card ->
         when (card) {
             is Card.Property -> {
-                playerState.removeProperty(card)
+                val removedDevelopments = playerState.removeProperty(card) ?: return PayResponse()
+                gameState.discardPile.addAll(removedDevelopments)
                 // Players can always Move property after they receive it since it's their turn so color isn't too important
                 val destination = receiverPlayerState.addProperty(card, card.colors.first())!!
                 propertyToDestinations[card.id] = destination
@@ -130,7 +131,8 @@ fun payRent(gameState: GameState, giver: String, receiver: String, payment: List
     }
 
     paymentProperties.forEach { card ->
-        playerState.removeProperty(card)
+        val removedDevelopments = playerState.removeProperty(card) ?: return PayResponse()
+        gameState.discardPile.addAll(removedDevelopments)
         val destination = receiverPlayerState.addProperty(card, card.colors.first())!!
         propertyToDestinations[card.id] = destination
     }

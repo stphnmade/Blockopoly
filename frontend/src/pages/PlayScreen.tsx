@@ -109,6 +109,7 @@ type Action =
   | { type: "DebtCollect"; id: number; target: string }
   | { type: "AcceptCharge"; payment: number[] }
   | { type: "JustSayNo"; ids: number[]; respondingTo?: string | null }
+  | { type: "AcceptJustSayNo"; respondingTo: string }
   | {
       type: "RequestRent";
       rentCardId: number;
@@ -622,7 +623,18 @@ const PlayScreen: React.FC = () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       reconnectTimer.current = setTimeout(() => connect(), delay);
     };
-  }, [navigate, wsUrl, roomId, myPID, handleStateSnapshot, handleDraw, displayName, formatColor]);
+  }, [
+    navigate,
+    wsUrl,
+    roomId,
+    myPID,
+    handleStateSnapshot,
+    handleDraw,
+    displayName,
+    formatColor,
+    formatActionLabel,
+    pushToast,
+  ]);
 
   useEffect(() => {
     connect();
@@ -636,6 +648,10 @@ const PlayScreen: React.FC = () => {
   /** Derived */
   const isMyTurn = game?.playerAtTurn === myPID;
   const playsLeft = Math.max(0, game?.cardsLeftToPlay ?? 0);
+  const pendingInteractions = useMemo(
+    () => getPendingInteractions(game?.pendingInteractions),
+    [game?.pendingInteractions, getPendingInteractions]
+  );
   const discardableHand = useMemo(
     () => myHand.filter((card) => card.type !== "PROPERTY"),
     [myHand]
@@ -1149,13 +1165,33 @@ const PlayScreen: React.FC = () => {
     setRentPropertySelection([]);
   }, [canPayRent, rentBankSelection, rentCharge, rentPropertySelection, wsSend]);
 
-  const playJustSayNo = useCallback(() => {
-    if (!rentCharge || jsnCards.length === 0) return;
-    wsSend({ type: "JustSayNo", ids: [jsnCards[0].id] });
+  const sendJustSayNo = useCallback(
+    (respondingTo?: string) => {
+      if (jsnCards.length === 0) return;
+      wsSend({
+        type: "JustSayNo",
+        ids: [jsnCards[0].id],
+        ...(respondingTo ? { respondingTo } : {}),
+      });
+    },
+    [jsnCards, wsSend]
+  );
+
+  const playRentJustSayNo = useCallback(() => {
+    if (!rentCharge) return;
+    sendJustSayNo();
     setRentCharge(null);
     setRentBankSelection([]);
     setRentPropertySelection([]);
-  }, [jsnCards, rentCharge, wsSend]);
+  }, [rentCharge, sendJustSayNo]);
+
+  const acceptJustSayNo = useCallback(
+    (respondingTo: string) => {
+      if (!respondingTo) return;
+      wsSend({ type: "AcceptJustSayNo", respondingTo });
+    },
+    [wsSend]
+  );
 
   /** DnD drop handling */
   // parseDropId removed with drag/drop
@@ -1325,7 +1361,7 @@ const PlayScreen: React.FC = () => {
   }, [debtTarget, debtTargets, isDebtCollecting]);
 
   useEffect(() => {
-    const pending = getPendingInteractions(game?.pendingInteractions);
+    const pending = pendingInteractions;
     if (pending.length === 0) {
       setRentCharge(null);
       return;
@@ -1344,6 +1380,11 @@ const PlayScreen: React.FC = () => {
     const action = rentInteraction.action ?? {};
     const isBirthday = action.type === "BIRTHDAY";
     const isDebtCollector = action.type === "DEBT_COLLECTOR";
+    const nextKind: ChargeKind = isBirthday
+      ? "BIRTHDAY"
+      : isDebtCollector
+        ? "DEBT_COLLECTOR"
+        : "RENT";
     const next = {
       requesterId: action.requester ?? "",
       amount: isBirthday
@@ -1354,7 +1395,7 @@ const PlayScreen: React.FC = () => {
             ? action.amount
             : Number(action.amount ?? 0) || 0,
       color: isBirthday || isDebtCollector ? null : action.color ?? null,
-      kind: isBirthday ? "BIRTHDAY" : isDebtCollector ? "DEBT_COLLECTOR" : "RENT",
+      kind: nextKind,
     };
     setRentCharge((prev) =>
       prev &&
@@ -1365,7 +1406,7 @@ const PlayScreen: React.FC = () => {
         ? prev
         : next
     );
-  }, [game?.pendingInteractions, getPendingInteractions, myPID]);
+  }, [myPID, pendingInteractions]);
 
   useEffect(() => {
     if (!rentCharge) {
@@ -1393,9 +1434,10 @@ const PlayScreen: React.FC = () => {
   ]);
 
   useEffect(() => {
+    const timers = toastTimers.current;
     return () => {
-      toastTimers.current.forEach((timer) => clearTimeout(timer));
-      toastTimers.current.clear();
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 
@@ -1424,6 +1466,20 @@ const PlayScreen: React.FC = () => {
     rentCharge?.kind === "RENT"
       ? "All of your cards are required to cover this rent."
       : "All of your cards are required to cover this charge.";
+
+  const devJsnInteraction = useMemo(
+    () =>
+      pendingInteractions.find(
+        (entry) =>
+          entry?.awaitingResponseFrom === myPID &&
+          entry?.action?.type === "DEVELOPMENT_REQUEST"
+      ) ?? null,
+    [pendingInteractions, myPID]
+  );
+  const devRequester = devJsnInteraction?.action?.requester as string | undefined;
+  const devType = devJsnInteraction?.action?.developmentType as string | undefined;
+  const devLabel = devType ? formatActionLabel(devType) : "Development";
+  const devRespondingTo = (devJsnInteraction?.toPlayer as string | undefined) ?? myPID;
 
   return (
     <div className="play-screen">
@@ -1898,7 +1954,7 @@ const PlayScreen: React.FC = () => {
               <button
                 type="button"
                 className="charge-jsn"
-                onClick={playJustSayNo}
+                onClick={playRentJustSayNo}
                 disabled={jsnCards.length === 0}
               >
                 Just Say No ({jsnCards.length})
@@ -1979,6 +2035,40 @@ const PlayScreen: React.FC = () => {
                 disabled={!canPayRent}
               >
                 {chargePayLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {devJsnInteraction && !rentCharge && (
+        <div className="jsn-overlay" role="dialog" aria-modal="true" aria-labelledby="jsn-title">
+          <div className="jsn-modal">
+            <div className="jsn-header">
+              <div>
+                <div className="jsn-title" id="jsn-title">
+                  Block {devLabel}?
+                </div>
+                <div className="jsn-subtitle">
+                  {displayName(devRequester)} played {devLabel} on a completed set.
+                </div>
+              </div>
+            </div>
+            <div className="jsn-actions">
+              <button
+                type="button"
+                className="jsn-secondary"
+                onClick={() => acceptJustSayNo(devRespondingTo)}
+              >
+                Allow
+              </button>
+              <button
+                type="button"
+                className="jsn-primary"
+                onClick={() => sendJustSayNo(devRespondingTo)}
+                disabled={jsnCards.length === 0}
+              >
+                Just Say No ({jsnCards.length})
               </button>
             </div>
           </div>
