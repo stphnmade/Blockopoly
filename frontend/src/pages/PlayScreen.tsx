@@ -2100,6 +2100,24 @@ const PlayScreen: React.FC = () => {
     );
   }, [dealIncomingCardEntry, dealInteraction, dealType, getDefaultReceiveColor]);
 
+  // Navigate to winner screen for all players when the game ends
+  useEffect(() => {
+    const winnerId = game?.winningPlayer;
+    if (!winnerId) return;
+    const winnerName = displayName(winnerId);
+    const sets = playerPropertySets[winnerId] ?? [];
+    const winningColors = Array.from(
+      new Set(
+        sets
+          .filter((set) => set.isComplete && set.color)
+          .map((set) => set.color as string)
+      )
+    );
+    navigate(`/winner/${roomCode || "current"}`, {
+      state: { winnerId, winnerName, winningColors },
+    });
+  }, [game?.winningPlayer, displayName, navigate, playerPropertySets, roomCode]);
+
   const acceptDeal = useCallback(() => {
     if (!dealInteraction || dealIsAggressor) return;
     const receiveAsColor = dealNeedsColorChoice ? dealResolvedColor ?? null : dealResolvedColor ?? null;
