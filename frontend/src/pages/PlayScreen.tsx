@@ -681,18 +681,7 @@ const PlayScreen: React.FC = () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       reconnectTimer.current = setTimeout(() => connect(), delay);
     };
-  }, [
-    navigate,
-    wsUrl,
-    roomId,
-    myPID,
-    handleStateSnapshot,
-    handleDraw,
-    displayName,
-    formatColor,
-    formatActionLabel,
-    pushToast,
-  ]);
+  }, [roomId, myPID, wsUrl, navigate, handleStateSnapshot, formatActionLabel, pushToast, displayName, playActionSound, formatColor, handleDraw]);
 
   useEffect(() => {
     connect();
