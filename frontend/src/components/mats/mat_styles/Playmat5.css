@@ -70,6 +70,9 @@
 
 .center-pile {
   grid-area: center;
+  align-items: center;
+  justify-content: center;
+  top: 50%;
 }
 
 .player-2-space .property-collection,

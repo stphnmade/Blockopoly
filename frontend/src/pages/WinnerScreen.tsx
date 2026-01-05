@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import FallingBricks from "../components/FallingBricks";
@@ -37,35 +37,54 @@ const WinnerScreen: React.FC = () => {
 
   const myPID = sessionStorage.getItem(PLAYER_ID_KEY) || "";
   const myName = (sessionStorage.getItem(NAME_KEY) || "").trim();
-  const roomId = sessionStorage.getItem(ROOM_ID_KEY) || "";
   const hostId = sessionStorage.getItem(HOST_ID_KEY) || "";
+  const roomId = sessionStorage.getItem(ROOM_ID_KEY) || "";
 
   const isHost = hostId !== "" && hostId === myPID;
   const effectiveWinnerName = winnerName || (winnerId === myPID ? myName || "You" : "Winner");
 
-  const [wsReady, setWsReady] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const autoJoinedRef = useRef(false);
 
+  // Listen for a fresh game STATE and auto-join when the game is restarted
   useEffect(() => {
     if (!roomId || !myPID) return;
+    if (autoJoinedRef.current) return;
+
     const wsUrl = `${toWs(GAME_API)}/ws/play/${encodeURIComponent(
       roomId
     )}/${encodeURIComponent(myPID)}`;
     const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    ws.onopen = () => setWsReady(true);
-    ws.onclose = () => setWsReady(false);
-    ws.onerror = () => setWsReady(false);
+
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg?.type === "STATE" && msg.gameState) {
+          const nextWinner = msg.gameState.winningPlayer as string | null;
+          if (nextWinner === null && !autoJoinedRef.current) {
+            autoJoinedRef.current = true;
+            ws.close();
+            navigate(`/play/${roomCode || "current"}`, { replace: true, state: null });
+          }
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    };
+
+    ws.onerror = () => {
+      // best-effort only; players can still use the button below
+    };
+
     return () => {
       ws.close();
-      wsRef.current = null;
     };
-  }, [roomId, myPID]);
+  }, [myPID, navigate, roomCode, roomId]);
 
   const handlePlayAgain = () => {
-    if (!isHost || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    wsRef.current.send(JSON.stringify({ type: "RestartGame" }));
-    navigate(`/play/${roomCode || roomId}`);
+    if (!isHost) return;
+    navigate(`/play/${roomCode || "current"}`, {
+      state: { restart: true },
+    });
   };
 
   const handleBackToMain = () => {
@@ -125,9 +144,16 @@ const WinnerScreen: React.FC = () => {
             <button
               className="winner-button primary"
               onClick={handlePlayAgain}
-              disabled={!wsReady}
             >
               Play Again with This Room
+            </button>
+          )}
+          {!isHost && (
+            <button
+              className="winner-button primary"
+              onClick={() => navigate(`/play/${roomCode || "current"}`)}
+            >
+              Join New Game
             </button>
           )}
           <button className="winner-button secondary" onClick={handleBackToMain}>
@@ -147,4 +173,3 @@ const WinnerScreen: React.FC = () => {
 };
 
 export default WinnerScreen;
-

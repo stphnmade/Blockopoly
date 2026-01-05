@@ -12,12 +12,13 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   PLAYERS_KEY,
   PLAYER_ID_KEY,
   ROOM_ID_KEY,
   NAME_KEY,
+  HOST_ID_KEY,
 } from "../constants/constants";
 import "../style/PlayScreen.css";
 import ChargeModal from "./play/components/ChargeModal";
@@ -190,11 +191,13 @@ type LobbyPlayer = { playerId?: string; id?: string; name?: string | null };
 
 const PlayScreen: React.FC = () => {
   const { roomCode = "" } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
 
   const myName = (sessionStorage.getItem(NAME_KEY) || "").trim();
   const myPID = sessionStorage.getItem(PLAYER_ID_KEY) || "";
   const roomId = sessionStorage.getItem(ROOM_ID_KEY) || "";
+  const hostId = sessionStorage.getItem(HOST_ID_KEY) || "";
 
   const playersRaw = sessionStorage.getItem(PLAYERS_KEY) ?? "[]";
   const lobbyPlayers = useMemo(
@@ -290,6 +293,7 @@ const PlayScreen: React.FC = () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify(action));
   }, []);
+  const restartRequestedRef = useRef(false);
 
   const playSound = useCallback((src: string, volume = 0.85) => {
     if (!src || typeof Audio === "undefined") return;
@@ -2088,6 +2092,16 @@ const PlayScreen: React.FC = () => {
       prev && dealIncomingCardEntry.card.colors?.includes(prev) ? prev : defaultColor
     );
   }, [dealIncomingCardEntry, dealInteraction, dealType, getDefaultReceiveColor]);
+
+  // Host-triggered restart after winner screen "Play Again"
+  useEffect(() => {
+    const navState = location.state as { restart?: boolean } | null;
+    const isHost = hostId !== "" && hostId === myPID;
+    if (!navState?.restart || restartRequestedRef.current || !isHost || !wsReady) return;
+    restartRequestedRef.current = true;
+    wsSend({ type: "RestartGame" });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [hostId, location.pathname, location.state, myPID, navigate, wsReady, wsSend]);
 
   // Navigate to winner screen for all players when the game ends
   useEffect(() => {
