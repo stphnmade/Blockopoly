@@ -42,6 +42,7 @@ import type {
   RentColorOption,
   ServerCard,
 } from "./play/types";
+import { SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soundBoard";
 
 // Drag-and-drop removed: using click/menu interactions only
 
@@ -143,7 +144,8 @@ type Action =
       toSetId: string;
       position?: number;
       toColor?: string | null;
-    };
+    }
+  | { type: "RestartGame" };
 
 type ChargeKind = "RENT" | "BIRTHDAY" | "DEBT_COLLECTOR";
 type ToastKind = "info" | "error";
@@ -289,6 +291,26 @@ const PlayScreen: React.FC = () => {
     ws.send(JSON.stringify(action));
   }, []);
 
+  const playSound = useCallback((src: string, volume = 0.85) => {
+    if (!src || typeof Audio === "undefined") return;
+    try {
+      const audio = new Audio(src);
+      audio.volume = volume;
+      void audio.play();
+    } catch {
+      /* ignore audio errors */
+    }
+  }, []);
+
+  const playActionSound = useCallback(
+    (actionType?: string | null) => {
+      const primary = resolveActionSfx(actionType);
+      playSound(primary, 0.9);
+      playSound(SFX_ACTION_OVERLAY, 0.5);
+    },
+    [playSound]
+  );
+
   const pushToast = useCallback((message: string, kind: ToastKind = "info") => {
     const id = toastIdRef.current++;
     setToasts((prev) => [...prev, { id, message, kind }]);
@@ -421,6 +443,7 @@ const PlayScreen: React.FC = () => {
           if (card.actionType) {
             const actionLabel = formatActionLabel(card.actionType);
             pushToast(`${displayName(playerId)} played ${actionLabel}.`, "info");
+            playActionSound(card.actionType);
           }
           if (playerId === myPID) {
             setMyHand((prev) => prev.filter((c) => c.id !== card.id));
@@ -466,6 +489,7 @@ const PlayScreen: React.FC = () => {
             ? `You played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`
             : `${displayName(requester)} played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`;
           pushToast(message, "info");
+          playActionSound("DEBT_COLLECTOR");
           if (target && target === myPID) {
             setRentCharge({
               requesterId: requester ?? "",
@@ -488,6 +512,7 @@ const PlayScreen: React.FC = () => {
             targetLabel ? ` from ${targetLabel}` : ""
           }`;
           pushToast(message, "info");
+          playActionSound("RENT");
           if (targets.includes(myPID)) {
             const amount =
               typeof payload.amount === "number"
@@ -520,6 +545,7 @@ const PlayScreen: React.FC = () => {
           const respondingTo = payload.respondingTo as string | undefined;
           const message = `${displayName(playerId)} played Just Say No${respondingTo ? ` against ${displayName(respondingTo)}` : ""}.`;
           pushToast(message, "info");
+          playActionSound("JUST_SAY_NO");
           return;
         }
         if ((msg as any).type === "SLY_DEAL") {
@@ -528,6 +554,7 @@ const PlayScreen: React.FC = () => {
           const targetPlayer = payload.targetPlayer as string | undefined;
           const message = `${displayName(requester)} played Sly Deal on ${displayName(targetPlayer)}.`;
           pushToast(message, "info");
+          playActionSound("SLY_DEAL");
           return;
         }
         if ((msg as any).type === "FORCED_DEAL") {
@@ -536,6 +563,7 @@ const PlayScreen: React.FC = () => {
           const targetPlayer = payload.targetPlayer as string | undefined;
           const message = `${displayName(requester)} played Forced Deal on ${displayName(targetPlayer)}.`;
           pushToast(message, "info");
+          playActionSound("FORCED_DEAL");
           return;
         }
         if ((msg as any).type === "DEALBREAKER") {
@@ -544,6 +572,7 @@ const PlayScreen: React.FC = () => {
           const targetPlayer = payload.targetPlayer as string | undefined;
           const message = `${displayName(requester)} played Deal Breaker on ${displayName(targetPlayer)}.`;
           pushToast(message, "info");
+          playActionSound("DEAL_BREAKER");
           return;
         }
         if ((msg as any).type === "DEVELOPMENT_ADDED") {
@@ -552,6 +581,7 @@ const PlayScreen: React.FC = () => {
           const actionLabel = formatActionLabel(dev?.actionType);
           const message = `${actionLabel} added to a completed set.`;
           pushToast(message, "info");
+          playActionSound(dev?.actionType);
           return;
         }
         // Handle server PATCH frames with event array (optimistic updates)
