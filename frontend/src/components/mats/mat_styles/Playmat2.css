@@ -1,144 +1,34 @@
-/* Playmat2.css - 2-player game mat specific styles */
-
 .playing-mat-outline-2-players {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #e5e5e5;
+  background: transparent;
 }
 
-.backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -1;
-}
-
-/* 🔑 scalable design surface */
-.mat-stage {
-  --scale: calc(min(100vw / 1920, 100vh / 1080));
-  width: 1920px;
-  height: 1080px;
-  transform-origin: top left;
-  transform: scale(var(--scale));
-  position: relative;
-}
-
-.background-cover {
-  position: absolute;
-  left: 0;
-  top: 380px;
-  width: 100%;
-  height: 286px;
-  background: rgba(154, 146, 126, 0.21);
+.playing-mat-outline-2-players .mat-stage {
+  grid-template-columns: 1fr;
+  grid-template-rows:
+    minmax(0, 0.9fr)
+    minmax(0, 0.5fr)
+    minmax(0, 1fr);
+  grid-template-areas:
+    "top"
+    "center"
+    "bottom";
 }
 
 .player-1-space {
-  width: 58.1875rem;
-  height: 25rem;
-  position: static;
-}
-
-.property-collection-zone {
-  width: 45.625rem;
-  height: 25rem;
-  position: static;
-}
-
-.property-collection {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 45.625rem;
-  height: 25rem;
-  position: absolute;
-  left: 43.8125rem;
-  top: 42.125rem;
-}
-
-.money-collection-bank {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 9.375rem;
-  height: 15rem;
-  position: absolute;
-  left: 31.25rem;
-  top: 47rem;
-  overflow: hidden;
-}
-
-.bank-pile {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.875rem;
-  font-weight: 400;
-  position: absolute;
-  left: 0.4375rem;
-  top: 5.25rem;
-  width: 8.9375rem;
-  height: 4.5rem;
-  -webkit-text-stroke: 0.0625rem #000000;
+  grid-area: bottom;
+  flex-direction: row;
 }
 
 .player-2-space {
-  width: 58.5625rem;
-  height: 23.25rem;
-  position: static;
+  grid-area: top;
+  flex-direction: row-reverse;
 }
 
-.player-2-property-collection-zone {
-  width: 45.625rem;
-  height: 23.25rem;
-  position: static;
+.center-pile {
+  grid-area: center;
 }
 
-.property-collection2 {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 45.625rem;
-  height: 23.25rem;
-  position: absolute;
-  left: 77.25rem;
-  top: 23.4375rem;
-  transform-origin: 0 0;
-  transform: rotate(-180deg) scale(1, 1);
-}
-
-.player-2-money-collection-bank {
-  background: transparent;
-  border-style: solid;
-  border-color: #000000;
-  border-width: 0.1875rem;
-  width: 9.375rem;
-  height: 15rem;
-  position: absolute;
-  left: 90.1875rem;
-  top: 15.4375rem;
-  transform-origin: 0 0;
-  transform: rotate(-180deg) scale(1, 1);
-  overflow: hidden;
-}
-
-.bank-pile2 {
-  color: #000000;
-  text-align: center;
-  font-family: "Inter-Regular", sans-serif;
-  font-size: 1.875rem;
-  font-weight: 400;
-  position: absolute;
-  left: 0.25rem;
-  top: 5.6875rem;
-  width: 8.9375rem;
-  height: 4.5rem;
-  -webkit-text-stroke: 0.0625rem #000000;
+.player-1-space .property-collection,
+.player-2-space .property-collection {
+  min-height: clamp(110px, 22vh, 320px);
 }

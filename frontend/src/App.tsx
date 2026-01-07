@@ -11,6 +11,7 @@ import { StartScreen } from "./pages/StartScreen";
 import MainMenu from "./pages/Mainmenu"; // renamed GameScreen
 import PlayScreen from "./pages/PlayScreen";
 import Lobby from "./pages/Lobby";
+import WinnerScreen from "./pages/WinnerScreen";
 import { AnimatePresence, motion } from "framer-motion";
 
 /* ─── Animated wrapper with correct typing ─── */
@@ -80,6 +81,15 @@ function App() {
             element={
               <AnimatedRoute>
                 <PlayScreen />
+              </AnimatedRoute>
+            }
+          />
+
+          <Route
+            path="/winner/:roomCode"
+            element={
+              <AnimatedRoute>
+                <WinnerScreen />
               </AnimatedRoute>
             }
           />

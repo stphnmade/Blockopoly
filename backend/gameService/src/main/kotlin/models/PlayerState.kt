@@ -15,14 +15,8 @@ data class PlayerState(val hand: MutableList<Card>, internal val propertyCollect
     }
 
     fun addProperty(property: Card.Property, withColor: Color?) : String? = propertyCollection.addProperty(property, withColor)
-    fun removeProperty(property: Card.Property) : Unit? {
-        val developmentsRemoved = propertyCollection.removeProperty(property)
-        if (developmentsRemoved == null) {
-            return null
-        } else {
-            developmentsRemoved.forEach(bank::add)
-        }
-        return Unit
+    fun removeProperty(property: Card.Property) : Set<Card>? {
+        return propertyCollection.removeProperty(property)
     }
     fun isPropertyInCollection(property: Card.Property) : Boolean = propertyCollection.isPropertyInCollection(property)
     fun addDevelopment(development: Card.Action, color: Color) : String? = propertyCollection.addDevelopment(development, color)?.propertySetId
@@ -32,7 +26,9 @@ data class PlayerState(val hand: MutableList<Card>, internal val propertyCollect
     fun getPropertySet(setId: String): PropertySet? = propertyCollection.getPropertySet(setId)
     fun getSetOfProperty(property: Card.Property) : PropertySet? = propertyCollection.getSetOfProperty(property.id)
     fun getNumOfSellableCards() : Int = propertyCollection.getNumOfSellableCards() + bank.size
+    fun getNumOfSellableCardsExcludingWildcards() : Int = propertyCollection.getNumOfSellableCardsExcludingWildcards() + bank.size
     fun totalValue() : Int = propertyCollection.totalValue() + bank.sumOf { it.value ?: 0 }
+    fun totalValueExcludingWildcards() : Int = propertyCollection.totalValueExcludingWildcards() + bank.sumOf { it.value ?: 0 }
     fun numCompleteSets() : Int = propertyCollection.numCompleteSets()
 
     fun getSetOfDevelopment(development: Card.Action) : PropertySet? {

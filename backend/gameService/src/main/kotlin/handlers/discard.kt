@@ -22,6 +22,7 @@ suspend fun discard(room: DealGame, game: MutableStateFlow<GameState>, playerId:
         
         // Find the card in the player's hand
         val cardToDiscard = playerState.hand.find { it.id == action.cardId } ?: return current
+        if (cardToDiscard is Card.Property) return current
         
         // Remove card from hand
         playerState.hand.removeIf { it.id == action.cardId }

@@ -12,6 +12,7 @@ import com.gameservice.models.PaymentEarningsMessage
 import com.gameservice.models.PendingInteraction
 import com.gameservice.models.RentRequestMessage
 import com.gameservice.util.pay
+import com.gameservice.util.payRent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.updateAndGet
 
@@ -34,7 +35,11 @@ suspend fun handlePayment(room: DealGame, gameState: GameState, playerId: String
     }
     val receiverState = gameState.playerState[request.requester] ?: return gameState
 
-    val (success, propertyDestinations, bankCards) = pay(gameState, playerId, request.requester, payment.payment, amountRequested)
+    val (success, propertyDestinations, bankCards) = when (interaction.action) {
+        is RentRequestMessage, is BirthdayMessage, is DebtCollectMessage ->
+            payRent(gameState, playerId, request.requester, payment.payment, amountRequested)
+        else -> pay(gameState, playerId, request.requester, payment.payment, amountRequested)
+    }
     if (!success) return gameState
     gameState.pendingInteractions.remove(interaction)
     room.sendBroadcast(
@@ -54,17 +59,7 @@ suspend fun handlePayment(room: DealGame, gameState: GameState, playerId: String
 
 fun resolveRentJSNStack(interaction: PendingInteraction) : Int {
     val request = interaction.action as RentRequestMessage
-    if (interaction.resolved) return request.amount
-    val offense = interaction.offense
-    val defense = interaction.defense
-    var amount = request.amount
-    if (defense.size >= offense.size + interaction.initial.size) throw IllegalStateException() // Interaction should've been canceled
-    if (defense.size > offense.size) {
-        val sizeDiff = defense.size - offense.size
-        val remainingCards = interaction.initial.subList(0, interaction.initial.size - sizeDiff)
-        repeat(interaction.initial.size - remainingCards.size) {
-            amount /= 2
-        }
-    }
-    return amount
+    val baseAmount = if (request.baseAmount == 0 && request.amount != 0) request.amount else request.baseAmount
+    val multiplier = if (request.multiplier <= 0) 1 else request.multiplier
+    return baseAmount * multiplier
 }

@@ -9,6 +9,7 @@ import {
   PLAYER_ID_KEY,
   PLAYERS_KEY,
   ROOM_ID_KEY,
+  HOST_ID_KEY,
 } from "../constants/constants.ts";
 
 // Use Vite-style env var; fallback for local dev
@@ -35,7 +36,9 @@ const Lobby: React.FC = () => {
   const [players, setPlayers] = useState<Player[]>(
     JSON.parse(sessionStorage.getItem(PLAYERS_KEY) || "[]")
   );
-  const [hostID, setHostID] = useState<string | null>(null);
+  const [hostID, setHostID] = useState<string | null>(
+    sessionStorage.getItem(HOST_ID_KEY) || null
+  );
 
   const esRef = useRef<EventSource | null>(null);
 
@@ -133,6 +136,12 @@ const Lobby: React.FC = () => {
       esRef.current = null;
     };
   }, [roomCode, myName, navigate, upsert, myPID]);
+
+  useEffect(() => {
+    if (hostID) {
+      sessionStorage.setItem(HOST_ID_KEY, hostID);
+    }
+  }, [hostID]);
 
   const leaveRoom = () => {
     fetch(`${API}/leaveRoom/${myPID}`, { method: "POST" }).then((r) => {

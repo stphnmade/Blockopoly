@@ -7,7 +7,11 @@ WORKDIR /frontend
 COPY package*.json ./
 
 # Install Node dependencies
-RUN npm install
+# Electron is only used for the desktop app and its
+# postinstall step tries to download binaries (which
+# can fail in restricted/CI Docker networks). Skip
+# the binary download so the web-only container builds.
+RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install
 
 # Install GUI dependencies (for Electron)
 RUN apt-get update && apt-get install -y \

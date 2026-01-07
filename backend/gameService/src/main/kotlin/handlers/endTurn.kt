@@ -14,13 +14,17 @@ suspend fun endTurn(room: DealGame, game: MutableStateFlow<GameState>, playerId:
         if (current.playerAtTurn != playerId) return current
         val nextPlayer = current.playerOrder[(current.playerOrder.indexOf(playerId) + 1) % current.playerOrder.size]
         val removedCards = mutableListOf<Card>()
-        current.playerState[playerId]?.hand?.size?.let { handSize ->
-            if (handSize > 7) {
-                while (current.playerState.getValue(playerId).hand.size > 7) {
-                    val removedCard = current.playerState.getValue(playerId).hand.removeLast()
-                    room.sendBroadcast(DiscardMessage(playerId, removedCard))
-                    removedCards.add(removedCard)
-                }
+        val playerState = current.playerState[playerId] ?: return@updateAndGet current
+        val hand = playerState.hand
+        var discardableCount = hand.count { it !is Card.Property }
+        if (discardableCount > 7) {
+            while (discardableCount > 7) {
+                val idx = hand.indexOfLast { it !is Card.Property }
+                if (idx < 0) break
+                val removedCard = hand.removeAt(idx)
+                discardableCount -= 1
+                room.sendBroadcast(DiscardMessage(playerId, removedCard))
+                removedCards.add(removedCard)
             }
         }
         current.discardPile.addAll(removedCards)

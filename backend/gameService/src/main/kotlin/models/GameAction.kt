@@ -27,7 +27,13 @@ data class PlayMoney(val id: Int) : GameAction
 
 @Serializable
 @SerialName("RequestRent")
-data class RequestRent(val rentCardId: Int, val rentDoublers: List<Int>, val rentingSetId: String, val target: String? = null) : GameAction
+data class RequestRent(
+    val rentCardId: Int,
+    val rentDoublers: List<Int>,
+    val rentingSetId: String,
+    val rentColor: Color? = null,
+    val target: String? = null
+) : GameAction
 
 @Serializable
 @SerialName("AcceptCharge")
@@ -44,6 +50,10 @@ data class AcceptJsn(val respondingTo: String) : GameAction
 @Serializable
 @SerialName("PassGo")
 class PassGo(val id: Int) : GameAction
+
+@Serializable
+@SerialName("PlayDoubleRent")
+data class PlayDoubleRent(val id: Int) : GameAction
 
 @Serializable
 @SerialName("DebtCollect")
@@ -82,4 +92,10 @@ data class Discard(val cardId: Int) : GameAction
 
 @Serializable
 @SerialName("MoveProperty")
-data class MoveProperty(val cardId: Int, val fromSetId: String?, val toSetId: String, val position: Int? = null) : GameAction
+data class MoveProperty(
+    val cardId: Int,
+    val fromSetId: String?,
+    val toSetId: String,
+    val position: Int? = null,
+    val toColor: Color? = null
+) : GameAction

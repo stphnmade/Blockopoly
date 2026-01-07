@@ -8,6 +8,7 @@ import com.gameservice.models.BirthdayMessage
 import com.gameservice.models.Card
 import com.gameservice.models.GameState
 import com.gameservice.models.PendingInteraction
+import com.gameservice.models.PlayUnstoppableActionMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.updateAndGet
 
@@ -18,8 +19,9 @@ suspend fun itsMyBirthday(room: DealGame, gameState: MutableStateFlow<GameState>
         val card = cardMapping[action.id] ?: return current
         if (card !is Card.Action || card.actionType != ActionType.BIRTHDAY || !current.isCardInHand(playerId, card) || current.cardsLeftToPlay <= 0) return current
         val birthdayMessage = BirthdayMessage(playerId, card.id)
+        room.sendBroadcast(PlayUnstoppableActionMessage(playerId, card))
         current.playerState.keys.forEach { id ->
-            if (id != playerId) return@forEach
+            if (id == playerId) return@forEach
             current.pendingInteractions.add(
                 PendingInteraction(
                     fromPlayer = playerId,

@@ -2,6 +2,8 @@
 
 Card description:
 
+Card rules :
+
 - **Deal Breaker**: Steal a complete property set from any player, including any buildings. Place it in your collection.
 - **Just Say No!**: Block any action card played against you. This card can be used at any time, even on another Just Say No!
 - **Forced Deal**: Swap one of your properties with another player’s property of your choice. Both properties must be from incomplete sets.
@@ -46,14 +48,14 @@ Card description:
 
 ## 🏠 Property Sets (10 Total)
 
-- Green
+- Green 
 - Dark Blue
-- Light Blue
+- Turqoise
+- Magenta
 - Red
 - Yellow
 - Orange
 - Brown
-- Purple
 - Railroads
 - Utilities
 
@@ -63,9 +65,9 @@ Card description:
 
 ### Two-Color Wildcards (8)
 
-- Purple & Orange (2)
-- Light Blue & Brown (1)
-- Light Blue & Railroad (1)
+- Magenta & Orange (2)
+- Turqoise & Brown (1)
+- Turqoise & Railroad (1)
 - Dark Blue & Green (1)
 - Railroad & Green (1)
 - Red & Yellow (2)
@@ -77,16 +79,44 @@ Card description:
 
 ---
 
+## Property distribution table
+
+| Property Set                  | Cards Available | Cards Needed to Complete | Notes                 |
+|---------------------------    |-----------------|--------------------------|-------                |
+| Railroad (Black)              | 4               | 4                        | —                     |
+| Green                         | 3               | 3                        | —                     |
+| Yellow                        | 3               | 3                        | —                     |
+| Red                           | 3               | 3                        | —                     |
+| Orange                        | 3               | 3                        | —                     |
+| Magenta                       | 3               | 3                        | —                     |
+| Turquoise                     | 3               | 3                        | —                     |
+| Dark Blue                     | 2               | 2                        | —                     |
+| Brown                         | 2               | 2                        | —                     |
+| Utility (Light Green)         | 2               | 2                        | —                     |
+| —                             | —               | —                        | —                     |
+| Magenta & Orange Wildcard     | 2               | —                        | Two-color wildcard    |
+| Turquoise & Brown Wildcard    | 1               | —                        | Two-color wildcard    |
+| Turquoise & Railroad Wildcard | 1               | —                        | Two-color wildcard    |
+| Dark Blue & Green Wildcard    | 1               | —                        | Two-color wildcard    |
+| Railroad & Green Wildcard     | 1               | —                        | Two-color wildcard    |
+| Red & Yellow Wildcard         | 2               | —                        | Two-color wildcard    |
+| Utility & Railroad Wildcard   | 1               | —                        | Two-color wildcard    |
+| Ten-Color Wildcard            | 2               | —                        | used as **any color** |
+
+---
+
 ## 💸 Rent Cards (13 Total)
 
-### Two-Color Rent Cards (10)
+### Two-Colored Rent cards(10)
 
-- Purple & Orange (2)
-- Railroad & Utility (2)
-- Green & Dark Blue (2)
-- Brown & Light Blue (2)
+- Dark Blue & Green (2)
 - Red & Yellow (2)
+- Turqoise & Brown (2)
+- Railroad & Utility (2)
+- Magenta & Orange (2)
 
-### Wild Rent Cards (3)
+### Ten-Color Rent carda (3)
 
-- Can be used for **any property set**
+- Can be used as **any color**
+
+---

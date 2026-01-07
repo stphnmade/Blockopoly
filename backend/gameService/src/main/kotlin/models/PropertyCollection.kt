@@ -52,7 +52,7 @@ class PropertyCollection {
     }
 
     fun removeDevelopment(development: Card.Action) : Unit? {
-        if (development.actionType !in arrayOf(ActionType.HOTEL, ActionType.HOTEL)) return null
+        if (development.actionType !in arrayOf(ActionType.HOUSE, ActionType.HOTEL)) return null
         return developmentsToSetId[development.id]?.let { setId ->
             when (development.actionType) {
                 ActionType.HOTEL -> collection[setId]?.hotel = null
@@ -92,8 +92,16 @@ class PropertyCollection {
         return collection.values.sumOf { it.totalValue() }
     }
 
+    fun totalValueExcludingWildcards() : Int {
+        return collection.values.sumOf { it.totalValueExcludingWildcards() }
+    }
+
     fun getNumOfSellableCards() : Int {
         return collection.values.fold(0) { acc, propertySet -> acc + propertySet.getNumOfSellableCards() }
+    }
+
+    fun getNumOfSellableCardsExcludingWildcards() : Int {
+        return collection.values.fold(0) { acc, propertySet -> acc + propertySet.getNumOfSellableCardsExcludingWildcards() }
     }
 
     fun removePropertySet(setId: String) : PropertySet? {
@@ -165,12 +173,20 @@ data class PropertySet(val propertySetId: String, val properties: MutableList<Ca
         return properties.sumOf { prop -> prop.value ?: 0 } + (house?.value ?: 0) + (hotel?.value ?: 0)
     }
 
+    fun totalValueExcludingWildcards(): Int {
+        return properties.filter { it.colors != ALL_COLOR_SET }.sumOf { prop -> prop.value ?: 0 } + (house?.value ?: 0) + (hotel?.value ?: 0)
+    }
+
     fun isSetEmpty(): Boolean {
         return (properties.isEmpty() && house == null && hotel == null)
     }
 
     fun getNumOfSellableCards(): Int {
-        return properties.filter { it.value != null }.size + (if (house == null) 0 else 1) + (if (hotel == null) 0 else 1)
+        return properties.size + (if (house == null) 0 else 1) + (if (hotel == null) 0 else 1)
+    }
+
+    fun getNumOfSellableCardsExcludingWildcards(): Int {
+        return properties.filter { it.colors != ALL_COLOR_SET }.size + (if (house == null) 0 else 1) + (if (hotel == null) 0 else 1)
     }
 
     private fun isCompleteSet() : Boolean {
@@ -179,7 +195,7 @@ data class PropertySet(val propertySetId: String, val properties: MutableList<Ca
     }
 
     fun addDevelopment(development: Card.Action) : Unit? {
-        if (development.actionType !in arrayOf(ActionType.HOTEL, ActionType.HOTEL)) return null
+        if (development.actionType !in arrayOf(ActionType.HOUSE, ActionType.HOTEL)) return null
         when (development.actionType) {
             ActionType.HOUSE -> {
                 if (house != null) return null
