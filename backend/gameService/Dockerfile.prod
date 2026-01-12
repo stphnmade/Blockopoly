@@ -1,0 +1,28 @@
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /app
+
+# Copy Gradle wrapper and config first for better layer caching
+COPY gradlew gradlew
+COPY gradle gradle
+COPY settings.gradle.kts build.gradle.kts ./
+
+# Normalize line endings and make wrapper executable
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
+
+# Copy the rest of the source
+COPY . .
+
+# Build fat jar with Shadow
+RUN ./gradlew --no-daemon clean shadowJar
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+# Copy the fat jar built by Shadow
+COPY --from=builder /app/build/libs/gameService-all.jar /app/app.jar
+
+# Default HTTP port; can be overridden via PORT env
+EXPOSE 8081
+
+ENTRYPOINT ["java","-jar","app.jar"]
+

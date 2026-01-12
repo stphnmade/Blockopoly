@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "build:web": "vite build",
     "dev": "concurrently \"vite --host\" \"npm run electron-dev\"",
     "dev:desktop": "concurrently \"vite --host\" \"npm run electron-dev\"",
     "dev:web": "vite --host",

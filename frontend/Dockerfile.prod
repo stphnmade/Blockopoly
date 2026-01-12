@@ -1,0 +1,32 @@
+FROM node:20-bookworm AS builder
+WORKDIR /app
+
+# Build-time API URLs for Vite (can be overridden via build args)
+ARG VITE_ROOM_SERVICE=/api/room
+ARG VITE_GAME_SERVICE=/api/game
+ARG VITE_API_BASE=/api/room
+
+ENV VITE_ROOM_SERVICE=$VITE_ROOM_SERVICE
+ENV VITE_GAME_SERVICE=$VITE_GAME_SERVICE
+ENV VITE_API_BASE=$VITE_API_BASE
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci || npm install
+
+# Copy source
+COPY . .
+
+# Build web-only bundle (no Electron packaging)
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+RUN npm run build:web
+
+FROM nginx:alpine
+
+# Copy built assets to nginx html directory
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+

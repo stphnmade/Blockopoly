@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  room-service:
+    build:
+      context: ./backend/roomService
+      dockerfile: Dockerfile.prod
+    environment:
+      PORT: 8080
+      KTOR_REDIS_HOST: redis
+      KTOR_REDIS_PORT: 6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  game-service:
+    build:
+      context: ./backend/gameService
+      dockerfile: Dockerfile.prod
+    environment:
+      PORT: 8081
+      KTOR_REDIS_HOST: redis
+      KTOR_REDIS_PORT: 6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_ROOM_SERVICE: /api/room
+        VITE_GAME_SERVICE: /api/game
+        VITE_API_BASE: /api/room
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - frontend
+      - room-service
+      - game-service
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+
