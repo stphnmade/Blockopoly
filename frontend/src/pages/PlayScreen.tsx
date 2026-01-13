@@ -1577,7 +1577,8 @@ const PlayScreen: React.FC = () => {
   const toggleDiscardSelection = useCallback(
     (cardId: number) => {
       const card = myHand.find((entry) => entry.id === cardId);
-      if (card?.type === "PROPERTY") return;
+      // Prevent discarding property and money cards; only allow action/rent cards
+      if (!card || card.type === "PROPERTY" || card.type === "MONEY") return;
       setDiscardSelection((prev) => {
         if (prev.includes(cardId)) {
           return prev.filter((id) => id !== cardId);
