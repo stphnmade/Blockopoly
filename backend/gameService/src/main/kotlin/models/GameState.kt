@@ -2,6 +2,7 @@ package com.gameservice.models
 
 import com.gameservice.INITIAL_DRAW_COUNT
 import com.gameservice.MAX_CARDS_PER_TURN
+import com.gameservice.NUM_COMPLETE_SETS_TO_WIN
 import com.gameservice.deck
 import kotlinx.serialization.Serializable
 
@@ -85,7 +86,24 @@ class GameState(var playerAtTurn: String?,
         pendingInteractions: Interactions = this.pendingInteractions,
         turnStarted: Boolean = this.turnStarted
     ): GameState {
-        return GameState(playerAtTurn, winningPlayer, drawPile, discardPile, playerState, playerOrder, cardsLeftToPlay, pendingInteractions, turnStarted)
+        // If no winner has been recorded yet, derive one from the current board
+        var effectiveWinner = winningPlayer ?: this.winningPlayer
+        if (effectiveWinner == null) {
+            effectiveWinner = playerState.entries
+                .firstOrNull { (_, state) -> state.numCompleteSets() >= NUM_COMPLETE_SETS_TO_WIN }
+                ?.key
+        }
+        return GameState(
+            playerAtTurn,
+            effectiveWinner,
+            drawPile,
+            discardPile,
+            playerState,
+            playerOrder,
+            cardsLeftToPlay,
+            pendingInteractions,
+            turnStarted
+        )
     }
 
     fun isCardInHand(player: String, card: Card): Boolean {
