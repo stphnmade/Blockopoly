@@ -1,5 +1,11 @@
 package com.roomservice
 
+import com.roomservice.ROOM_CLIENT_TO_PLAYER_PREFIX
+import com.roomservice.JOIN_CODE_TO_ROOM_PREFIX
+import com.roomservice.LETTUCE_REDIS_COMMANDS_KEY
+import com.roomservice.ROOM_START_STATUS_PREFIX
+import com.roomservice.ROOM_TO_PLAYERS_PREFIX
+import com.roomservice.PLAYER_TO_NAME_PREFIX
 import com.roomservice.routes.closeRoomHandler
 import com.roomservice.routes.createRoomHandler
 import com.roomservice.routes.joinRoomHandler
@@ -8,10 +14,14 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
 import io.ktor.server.routing.post
+import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import io.ktor.server.sse.heartbeat
 import io.ktor.server.sse.sse
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.future.asDeferred
+import kotlinx.coroutines.awaitAll
+import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.seconds
 
 
@@ -56,5 +66,63 @@ fun Application.configureRouting() {
             redis.publish(ROOM_START_CHANNEL, msg)
             call.respond(HttpStatusCode.OK)
         }
+
+        // Bootstrap endpoint: given roomCode + optional clientId, return lobby state snapshot
+        get("/rooms/{roomCode}/state") {
+            val roomCode = call.parameters["roomCode"]
+            if (roomCode.isNullOrBlank()) {
+                return@get call.respond(HttpStatusCode.BadRequest)
+            }
+            val clientId = call.request.queryParameters["clientId"]
+            val redis = call.application.attributes[LETTUCE_REDIS_COMMANDS_KEY]
+
+            val roomId = redis.get(JOIN_CODE_TO_ROOM_PREFIX + roomCode).await()
+            if (roomId.isNullOrBlank()) {
+                return@get call.respond(HttpStatusCode.NotFound)
+            }
+
+            val playerIds = redis.lrange(ROOM_TO_PLAYERS_PREFIX + roomId, 0, -1).await()
+            val nameFutures = playerIds.map { pid ->
+                redis.get(PLAYER_TO_NAME_PREFIX + pid).asDeferred()
+            }
+            val names = nameFutures.awaitAll()
+            val players = playerIds.zip(names).mapNotNull { (pid, name) ->
+                name?.let { PlayerSummary(pid, it) }
+            }
+
+            val hostId = players.firstOrNull()?.playerId
+            val roomStarted = redis.get(ROOM_START_STATUS_PREFIX + roomId).await()
+            val phase = if (roomStarted == "true") "in-game" else "lobby"
+
+            val mappedPlayerId =
+                if (!clientId.isNullOrBlank()) {
+                    redis.get(ROOM_CLIENT_TO_PLAYER_PREFIX + roomId + ":" + clientId).await()
+                } else null
+
+            val response = RoomStateResponse(
+                roomExists = true,
+                roomId = roomId,
+                roomCode = roomCode,
+                players = players,
+                hostId = hostId,
+                phase = phase,
+                playerId = mappedPlayerId
+            )
+            call.respond(response)
+        }
     }
 }
+
+@Serializable
+data class PlayerSummary(val playerId: String, val name: String)
+
+@Serializable
+data class RoomStateResponse(
+    val roomExists: Boolean,
+    val roomId: String,
+    val roomCode: String,
+    val players: List<PlayerSummary>,
+    val hostId: String?,
+    val phase: String,
+    val playerId: String?
+)

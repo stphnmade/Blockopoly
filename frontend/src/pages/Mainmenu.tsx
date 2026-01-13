@@ -9,6 +9,7 @@ import {
   PLAYERS_KEY,
   ROOM_ID_KEY,
 } from "../constants/constants.ts";
+import { getClientId } from "../utils/clientId";
 
 const API = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
 
@@ -89,9 +90,10 @@ const MainMenu: React.FC = () => {
       setError("Enter a name and 6-character room code.");
       return;
     }
+    const clientId = getClientId();
     const url = `${API}/joinRoom/${codeInput}/${encodeURIComponent(
       name.trim()
-    )}`;
+    )}?clientId=${encodeURIComponent(clientId)}`;
     openStream(url);
   };
 
@@ -101,7 +103,10 @@ const MainMenu: React.FC = () => {
       setError("Please enter a name.");
       return;
     }
-    const url = `${API}/createRoom/${encodeURIComponent(name.trim())}`;
+    const clientId = getClientId();
+    const url = `${API}/createRoom/${encodeURIComponent(
+      name.trim()
+    )}?clientId=${encodeURIComponent(clientId)}`;
     openStream(url);
   };
 

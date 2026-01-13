@@ -10,6 +10,7 @@ import com.roomservice.PLAYER_TO_ROOM_PREFIX
 import com.roomservice.PUBSUB_MANAGER_KEY
 import com.roomservice.ROOM_TO_JOIN_CODE_PREFIX
 import com.roomservice.ROOM_TO_PLAYERS_PREFIX
+import com.roomservice.ROOM_CLIENT_TO_PLAYER_PREFIX
 import com.roomservice.RoomBroadcastType
 import com.roomservice.SECS_IN_HOUR
 import com.roomservice.models.Player
@@ -30,6 +31,7 @@ suspend fun createRoomHandler(call: ApplicationCall, session : ServerSSESession)
     val redis = call.application.attributes[LETTUCE_REDIS_COMMANDS_KEY]
     val pubSubManager = call.application.attributes[PUBSUB_MANAGER_KEY]
     val userName = call.parameters["username"]
+    val clientId = call.request.queryParameters["clientId"]
     val playerId = call.request.queryParameters["playerId"]
     if (userName.isNullOrBlank()) {
         session.send(ErrorType.BAD_REQUEST.toString(), RoomBroadcastType.ERROR.toString())
@@ -78,6 +80,14 @@ suspend fun createRoomHandler(call: ApplicationCall, session : ServerSSESession)
     )
 
     if (null !in arrayOf(hostStatus, nameStatus, roomToCodeStatus) && roomStatus == 1L) {
+        // Persist clientId -> playerId mapping for reconnect if provided
+        if (!clientId.isNullOrBlank()) {
+            redis.setex(
+                ROOM_CLIENT_TO_PLAYER_PREFIX + roomID + ":" + clientId,
+                SECS_IN_HOUR,
+                hostID
+            ).await()
+        }
         session.send(
                 Json.encodeToString(JoinRoomResponse(
                             playerId = hostID,

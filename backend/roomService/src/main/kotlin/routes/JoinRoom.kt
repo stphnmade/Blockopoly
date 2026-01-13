@@ -12,6 +12,7 @@ import com.roomservice.ROOM_START_STATUS_PREFIX
 import com.roomservice.ROOM_TO_PLAYERS_PREFIX
 import com.roomservice.RoomBroadcastType
 import com.roomservice.SECS_IN_HOUR
+import com.roomservice.ROOM_CLIENT_TO_PLAYER_PREFIX
 import com.roomservice.models.Player
 import com.roomservice.models.RoomBroadcast
 import com.roomservice.models.RoomSubChannel
@@ -52,6 +53,7 @@ suspend fun joinRoomHandler(call: ApplicationCall, session: ServerSSESession) {
     val redis = call.application.attributes[LETTUCE_REDIS_COMMANDS_KEY]
     val pubSubManager = call.application.attributes[PUBSUB_MANAGER_KEY]
     val reconnectingPlayer = call.request.queryParameters["playerId"]
+    val clientId = call.request.queryParameters["clientId"]
 
     if (reconnectingPlayer != null) {
         return reconnect(reconnectingPlayer, session)
@@ -83,6 +85,14 @@ suspend fun joinRoomHandler(call: ApplicationCall, session: ServerSSESession) {
         val channel = pubSubManager.subscribe(roomID)
         val successfulUpdate = updateDatastore(playerID, userName, roomID, redis, session)
         if (successfulUpdate.first) {
+            // Persist clientId -> playerId mapping for reconnect if provided
+            if (!clientId.isNullOrBlank()) {
+                redis.setex(
+                    ROOM_CLIENT_TO_PLAYER_PREFIX + roomID + ":" + clientId,
+                    SECS_IN_HOUR,
+                    playerID
+                ).await()
+            }
             redis.publish(roomID,
                     RoomBroadcast(
                         RoomBroadcastType.JOIN,

@@ -11,6 +11,7 @@ import {
   ROOM_ID_KEY,
   HOST_ID_KEY,
 } from "../constants/constants.ts";
+import { getClientId } from "../utils/clientId";
 
 // Use Vite-style env var; fallback for local dev
 const API = import.meta.env.VITE_ROOM_SERVICE ?? "http://localhost:8080";
@@ -29,13 +30,23 @@ const Lobby: React.FC = () => {
   const { roomCode = "" } = useParams();
   const navigate = useNavigate();
 
-  const myName = sessionStorage.getItem(NAME_KEY) || "";
-  const [myPID] = useState<string>(sessionStorage.getItem(PLAYER_ID_KEY) || "");
-  const roomId = sessionStorage.getItem(ROOM_ID_KEY) ?? "";
-
-  const [players, setPlayers] = useState<Player[]>(
-    JSON.parse(sessionStorage.getItem(PLAYERS_KEY) || "[]")
+  const [myName, setMyName] = useState<string>(
+    sessionStorage.getItem(NAME_KEY) || ""
   );
+  const [myPID, setMyPID] = useState<string>(
+    sessionStorage.getItem(PLAYER_ID_KEY) || ""
+  );
+  const [roomId, setRoomId] = useState<string>(
+    sessionStorage.getItem(ROOM_ID_KEY) ?? ""
+  );
+
+  const [players, setPlayers] = useState<Player[]>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(PLAYERS_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [hostID, setHostID] = useState<string | null>(
     sessionStorage.getItem(HOST_ID_KEY) || null
   );
@@ -53,6 +64,58 @@ const Lobby: React.FC = () => {
   useEffect(() => {
     sessionStorage.setItem(PLAYERS_KEY, JSON.stringify(players));
   }, [players]);
+
+  // Bootstrap lobby state on reload if identity is missing
+  useEffect(() => {
+    if (!roomCode) return;
+    if (myPID && myName && roomId) return;
+
+    const clientId = getClientId();
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/room/rooms/${encodeURIComponent(
+            roomCode
+          )}/state?clientId=${encodeURIComponent(clientId)}`
+        );
+        if (!res.ok) return;
+        const data: {
+          roomId: string;
+          roomCode: string;
+          players: { playerId: string; name: string }[];
+          hostId: string | null;
+          playerId: string | null;
+        } = await res.json();
+
+        if (!data.playerId || !data.roomId) return;
+
+        const player = data.players.find((p) => p.playerId === data.playerId);
+        const resolvedName = player?.name ?? myName;
+
+        setMyPID(data.playerId);
+        setRoomId(data.roomId);
+        if (resolvedName) {
+          setMyName(resolvedName);
+          sessionStorage.setItem(NAME_KEY, resolvedName);
+        }
+        setPlayers(data.players as Player[]);
+        if (data.hostId) {
+          setHostID(data.hostId);
+        }
+
+        sessionStorage.setItem(PLAYER_ID_KEY, data.playerId);
+        sessionStorage.setItem(ROOM_ID_KEY, data.roomId);
+        sessionStorage.setItem(PLAYERS_KEY, JSON.stringify(data.players));
+        if (data.hostId) {
+          sessionStorage.setItem(HOST_ID_KEY, data.hostId);
+        }
+      } catch (e) {
+        console.error("[Lobby bootstrap] Failed to load room state", e);
+      }
+    })();
+    // run once per roomCode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode]);
 
   useEffect(() => {
     if (!myName || !roomCode) {

@@ -3,6 +3,7 @@ package com.gameservice
 import com.gameservice.models.Command
 import com.gameservice.models.GameAction
 import com.gameservice.models.StartTurn
+import com.gameservice.models.VisibleGameState
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.response.respond
@@ -17,7 +18,7 @@ import kotlinx.serialization.json.Json
 
 fun Application.configureRouting() {
     routing {
-        get("/") {call.respond(HttpStatusCode.OK)}
+        get("/") { call.respond(HttpStatusCode.OK) }
         route("/ws/play/{roomId}/{playerId}") {
             webSocket{
                 val roomId = call.parameters["roomId"] ?: return@webSocket
@@ -34,6 +35,20 @@ fun Application.configureRouting() {
                     }
                 }
             }
+        }
+
+        // Bootstrap endpoint: current visible game state for a player
+        get("/games/{roomId}/state") {
+            val roomId = call.parameters["roomId"]
+            val playerId = call.request.queryParameters["playerId"]
+            if (roomId.isNullOrBlank() || playerId.isNullOrBlank()) {
+                return@get call.respond(HttpStatusCode.BadRequest)
+            }
+
+            val game = ServerManager.getRoom(roomId) ?: return@get call.respond(HttpStatusCode.NotFound)
+            val stateFlow = game.state.await()
+            val visible: VisibleGameState = stateFlow.value.getVisibleGameState(playerId)
+            call.respond(visible)
         }
     }
 }
