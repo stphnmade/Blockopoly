@@ -710,7 +710,7 @@ const PlayScreen: React.FC = () => {
     [game?.pendingInteractions, getPendingInteractions]
   );
   const discardableHand = useMemo(
-    () => myHand.filter((card) => card.type !== "PROPERTY"),
+    () => myHand.filter((card) => card.type !== "PROPERTY" && card.type !== "MONEY"),
     [myHand]
   );
   const discardNeeded = Math.max(0, discardableHand.length - MAX_HAND_SIZE);

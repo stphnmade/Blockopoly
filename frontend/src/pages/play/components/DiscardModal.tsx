@@ -44,8 +44,8 @@ export default function DiscardModal({
           {myHand.map((card, idx) => {
             const selected = discardSelection.includes(card.id);
             const selectionFull = discardSelection.length >= discardNeeded;
-            const isProperty = card.type === "PROPERTY";
-            const disabled = isProperty || (!selected && selectionFull);
+            const isNonDiscardable = card.type === "PROPERTY" || card.type === "MONEY";
+            const disabled = isNonDiscardable || (!selected && selectionFull);
             return (
               <button
                 key={`discard-${card.id}-${idx}`}
