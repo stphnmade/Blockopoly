@@ -1948,12 +1948,20 @@ const PlayScreen: React.FC = () => {
       : rentCharge?.kind === "DEBT_COLLECTOR"
         ? "Pay Debt Collector"
         : "Pay Rent";
-  const chargePayLabel =
+  const baseChargePayLabel =
     rentCharge?.kind === "BIRTHDAY"
       ? "Pay Birthday"
       : rentCharge?.kind === "DEBT_COLLECTOR"
         ? "Pay Debt"
         : "Pay Rent";
+  const overpayAmount =
+    !rentMustPayAll && rentAmountDue > 0 && rentSelectedTotal > rentAmountDue
+      ? rentSelectedTotal - rentAmountDue
+      : 0;
+  const chargePayLabel =
+    overpayAmount > 0
+      ? `${baseChargePayLabel} (Overpaying ${overpayAmount}M)`
+      : baseChargePayLabel;
   const chargeSubtitle = rentCharge
     ? rentCharge.kind === "BIRTHDAY"
       ? `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M for their birthday.`

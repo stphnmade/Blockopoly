@@ -64,7 +64,9 @@
   letter-spacing: 0.02em;
   opacity: 0;
   transform: translateY(-4px);
-  transition: opacity 160ms ease, transform 160ms ease;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
   pointer-events: none;
   white-space: nowrap;
   z-index: 2;
@@ -280,10 +282,12 @@
 
 .droppable {
   position: relative;
-  z-index: 5;
   pointer-events: auto;
-  transition: outline-color 120ms ease, background 120ms ease,
-    transform 120ms ease, box-shadow 120ms ease;
+  transition:
+    outline-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease,
+    box-shadow 120ms ease;
   border-radius: 8px;
 }
 
