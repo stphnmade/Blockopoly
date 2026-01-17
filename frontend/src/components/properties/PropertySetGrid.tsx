@@ -25,9 +25,15 @@ export default function PropertySetGrid({
   while (slots.length < SLOT_COUNT) slots.push(null);
 
   const [probeSetKey, setProbeSetKey] = useState<string | null>(null);
+  const [focusedCardId, setFocusedCardId] = useState<number | null>(null);
   const activeSet = useMemo(
     () => sets.find((s) => s.key === probeSetKey) ?? null,
     [sets, probeSetKey]
+  );
+  const focusedCard = useMemo(
+    () =>
+      activeSet?.cards.find((card) => card.id === focusedCardId) ?? null,
+    [activeSet, focusedCardId]
   );
 
   const handleOpenSet = (setKey: string) => {
@@ -98,7 +104,10 @@ export default function PropertySetGrid({
           role="dialog"
           aria-modal="true"
           aria-labelledby="prop-probe-title"
-          onClick={() => setProbeSetKey(null)}
+          onClick={() => {
+            setFocusedCardId(null);
+            setProbeSetKey(null);
+          }}
         >
           <div
             className="prop-probe-modal"
@@ -122,7 +131,13 @@ export default function PropertySetGrid({
               ) : (
                 <div className="prop-probe-grid">
                   {activeSet.cards.map((card) => (
-                    <div key={card.id} className="prop-probe-card">
+                    <button
+                      key={card.id}
+                      type="button"
+                      className="prop-probe-card"
+                      onClick={() => setFocusedCardId(card.id)}
+                      aria-label={`Inspect ${card.name}`}
+                    >
                       {card.imageUrl ? (
                         <img
                           src={card.imageUrl}
@@ -140,11 +155,57 @@ export default function PropertySetGrid({
                             : ""}
                         </span>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {focusedCard && (
+        <div
+          className="prop-card-inspect-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={focusedCard.name}
+          onClick={() => setFocusedCardId(null)}
+        >
+          <div
+            className="prop-card-inspect-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="prop-card-inspect-image-wrap">
+              {focusedCard.imageUrl ? (
+                <img
+                  src={focusedCard.imageUrl}
+                  alt={focusedCard.name}
+                  className="prop-card-inspect-image"
+                  draggable={false}
+                />
+              ) : (
+                <div className="prop-card-inspect-placeholder" />
+              )}
+            </div>
+            <div className="prop-card-inspect-meta">
+              <div className="prop-card-inspect-name">{focusedCard.name}</div>
+              {focusedCard.isWild && (
+                <div className="prop-card-inspect-tag">
+                  Wild
+                  {focusedCard.assignedColor
+                    ? ` • ${String(focusedCard.assignedColor)}`
+                    : ""}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              className="prop-card-inspect-close"
+              onClick={() => setFocusedCardId(null)}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

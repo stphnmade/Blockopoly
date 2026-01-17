@@ -294,13 +294,7 @@
   box-shadow: 0 0 18px rgba(74, 144, 226, 0.3);
 }
 
-/* End-turn button positioned centered above the hand overlay */
 .end-turn-button {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 180px;
-  z-index: 1001;
   padding: 0.6rem 1rem;
   background: #ff7a59;
   color: #fff;
@@ -310,10 +304,4 @@
   border: none;
   font-weight: 600;
   pointer-events: auto;
-}
-
-@media (max-height: 700px) {
-  .end-turn-button {
-    bottom: 150px;
-  }
 }

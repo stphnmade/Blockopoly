@@ -277,6 +277,7 @@ const PlayScreen: React.FC = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(500);
+  const shouldReconnectRef = useRef(true);
   const toastTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const toastIdRef = useRef(0);
 
@@ -678,6 +679,9 @@ const PlayScreen: React.FC = () => {
     };
 
     ws.onclose = (ev) => {
+      if (!shouldReconnectRef.current) {
+        return;
+      }
       console.warn("[WS] closed", { code: ev?.code, reason: ev?.reason, wasClean: ev?.wasClean });
       setWsReady(false);
       const delay = Math.min(backoffRef.current, 6000);
@@ -688,8 +692,10 @@ const PlayScreen: React.FC = () => {
   }, [roomId, myPID, wsUrl, navigate, handleStateSnapshot, formatActionLabel, pushToast, displayName, playActionSound, formatColor, handleDraw]);
 
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connect();
     return () => {
+      shouldReconnectRef.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
       wsRef.current = null;
@@ -2204,56 +2210,50 @@ const PlayScreen: React.FC = () => {
       {/* Actions: the End Turn button is rendered as a portal into document.body
         so it centers relative to the viewport */}
 
-      {/* Hand */}
+      {/* Hand and inline End Turn button (joined to hand overlay) */}
       <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
         <div className="mat-hand-row">
-            <div className="flex items-center gap-3 mr-2">
-              <button
-                className="hand-collapse-btn"
-                onClick={() => setHandExpanded((s) => !s)}
-                aria-expanded={handExpanded ? "true" : "false"}
-                title={handExpanded ? "Hide hand" : "Show hand"}
-              >
-                {handExpanded ? "Hide" : `${myName || "Your"} hand`}
-              </button>
-              <div className="text-sm font-medium">{myName || "Your hand"}</div>
-            </div>
-            {handExpanded && myHand.map((card, idx) => {
-            const isPassGo = card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
-            const canDrag =
-              isMyTurn &&
-              playsLeft > 0 &&
-              (card.type === "MONEY" ||
-                card.type === "PROPERTY" ||
-                card.type === "RENT_ACTION" ||
-                isPassGo);
-            return (
-              <DraggableCard
-                key={`${card.id}-${idx}`}
-                card={card}
-                canDrag={canDrag}
-                onClick={() => onCardClick(card)}
-              />
-            );
-          })}
-          </div>
-        </div>
-
-      
-
-      {/* Portal-mounted End Turn button (centers on viewport) */}
-      {typeof document !== "undefined"
-        ? createPortal(
+          <div className="flex items-center gap-3 mr-2">
             <button
-              className="end-turn-button"
-              onClick={sendEndTurn}
-              disabled={!isMyTurn || isDiscarding || isPositioning}
+              className="hand-collapse-btn"
+              onClick={() => setHandExpanded((s) => !s)}
+              aria-expanded={handExpanded ? "true" : "false"}
+              title={handExpanded ? "Hide hand" : "Show hand"}
             >
-              End Turn
-            </button>,
-            document.body
-          )
-        : null}
+              {handExpanded ? "Hide" : `${myName || "Your"} hand`}
+            </button>
+            <div className="text-sm font-medium">{myName || "Your hand"}</div>
+          </div>
+          <button
+            type="button"
+            className="end-turn-button"
+            onClick={sendEndTurn}
+            disabled={!isMyTurn || isDiscarding || isPositioning}
+          >
+            End Turn
+          </button>
+          {handExpanded &&
+            myHand.map((card, idx) => {
+              const isPassGo =
+                card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
+              const canDrag =
+                isMyTurn &&
+                playsLeft > 0 &&
+                (card.type === "MONEY" ||
+                  card.type === "PROPERTY" ||
+                  card.type === "RENT_ACTION" ||
+                  isPassGo);
+              return (
+                <DraggableCard
+                  key={`${card.id}-${idx}`}
+                  card={card}
+                  canDrag={canDrag}
+                  onClick={() => onCardClick(card)}
+                />
+              );
+            })}
+        </div>
+      </div>
 
       <PositioningModal
         isOpen={isPositioning}
