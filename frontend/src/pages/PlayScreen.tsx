@@ -595,46 +595,7 @@ const PlayScreen: React.FC = () => {
           // apply each event to local game state for immediate UI reflection
           events.forEach((e) => {
             if (!e || !e.type) return;
-            if (e.type === "MOVE_PROPERTY") {
-              const payload = e.payload ?? {};
-              const { playerId, cardId, fromSetId, toSetId } = payload;
-              if (!playerId || !cardId) return;
-              setGame((g) => {
-                if (!g) return g;
-                const next = { ...g, playerState: { ...g.playerState } } as ServerGameState;
-                const ps = next.playerState[playerId];
-                if (!ps) return next;
-                // helper to normalize card object
-                const cid = typeof cardId === "string" ? Number(cardId) : cardId;
-                const cardObj: ServerCard = { id: cid, type: "PROPERTY" };
-
-                // remove from source set (handles array or { properties: [] })
-                if (fromSetId && ps.propertyCollection && ps.propertyCollection[fromSetId]) {
-                  const src = ps.propertyCollection[fromSetId] as any;
-                  if (Array.isArray(src)) {
-                    ps.propertyCollection[fromSetId] = src.filter((c: any) => (c?.id ?? c) !== cid);
-                  } else if (src && Array.isArray(src.properties)) {
-                    src.properties = src.properties.filter((c: any) => (c?.id ?? c) !== cid);
-                    ps.propertyCollection[fromSetId] = src;
-                  }
-                }
-
-                // add to target set
-                if (!ps.propertyCollection) ps.propertyCollection = {} as Record<string, ServerCard[]>;
-                const dest = ps.propertyCollection[toSetId];
-                if (Array.isArray(dest)) {
-                  ps.propertyCollection[toSetId] = [...dest, cardObj];
-                } else if (dest && Array.isArray((dest as any).properties)) {
-                  (dest as any).properties = [...(dest as any).properties, cardObj];
-                  ps.propertyCollection[toSetId] = dest as any;
-                } else {
-                  // create new set as simple array form
-                  ps.propertyCollection[toSetId] = [cardObj];
-                }
-
-                return next;
-              });
-            } else if (e.type === "DISCARD") {
+            if (e.type === "DISCARD") {
               const payload = e.payload ?? {};
               const { playerId, cardId } = payload;
               if (!cardId) return;
@@ -1223,8 +1184,60 @@ const PlayScreen: React.FC = () => {
       ...(positionTarget.toColor ? { toColor: positionTarget.toColor } : {}),
     };
     wsSend(action);
+    // Optimistically update local game state so repositioned card shows immediately
+    setGame((g) => {
+      if (!g) return g;
+      const pid = myPID;
+      if (!pid || !g.playerState?.[pid]) return g;
+      const next = { ...g, playerState: { ...g.playerState } } as ServerGameState;
+      const ps = next.playerState[pid];
+      if (!ps.propertyCollection) return next;
+
+      const cid = positioningCard.card.id;
+      const fromId = positioningCard.fromSetId;
+      const toId = positionTarget.toSetId;
+
+      const removeFromSet = (setVal: any) => {
+        if (Array.isArray(setVal)) {
+          return setVal.filter((c: any) => (c?.id ?? c) !== cid);
+        }
+        if (setVal && Array.isArray(setVal.properties)) {
+          return {
+            ...setVal,
+            properties: setVal.properties.filter((c: any) => (c?.id ?? c) !== cid),
+          };
+        }
+        return setVal;
+      };
+
+      const addToSet = (setVal: any) => {
+        const card = positioningCard.card;
+        if (Array.isArray(setVal)) {
+          return [...setVal, card];
+        }
+        if (setVal && Array.isArray(setVal.properties)) {
+          return { ...setVal, properties: [...setVal.properties, card] };
+        }
+        return {
+          color: positionTarget.toColor ?? (card.colors?.[0] ?? null),
+          isComplete: false,
+          properties: [card],
+          house: null,
+          hotel: null,
+        };
+      };
+
+      const collection: Record<string, any> = { ...ps.propertyCollection };
+      if (fromId && collection[fromId]) {
+        collection[fromId] = removeFromSet(collection[fromId]);
+      }
+      collection[toId] = addToSet(collection[toId]);
+      ps.propertyCollection = collection;
+      next.playerState[pid] = ps;
+      return next;
+    });
     closePositioning();
-  }, [closePositioning, isMyTurn, positionTarget, positioningCard, wsSend]);
+  }, [closePositioning, isMyTurn, myPID, positionTarget, positioningCard, setGame, wsSend]);
 
   const openRentMenu = useCallback((card: ServerCard) => {
     if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
