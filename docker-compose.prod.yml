@@ -49,6 +49,8 @@ services:
       - game-service
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
     ports:
       - "80:80"
       - "443:443"
