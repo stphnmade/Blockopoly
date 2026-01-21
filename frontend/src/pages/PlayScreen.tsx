@@ -589,6 +589,105 @@ const PlayScreen: React.FC = () => {
           playActionSound(dev?.actionType);
           return;
         }
+        if ((msg as any).type === "PROPERTY_MOVED") {
+          const payload = msg as any;
+          const playerId = payload.playerId as string | undefined;
+          const cardId = payload.cardId as number | string | undefined;
+          const fromSetId = payload.fromSetId as string | null | undefined;
+          const toSetId = payload.toSetId as string | undefined;
+          if (!playerId || !cardId || !toSetId) return;
+          setGame((g) => {
+            if (!g) return g;
+            const next = { ...g, playerState: { ...g.playerState } } as ServerGameState;
+            const ps = next.playerState[playerId];
+            if (!ps || !ps.propertyCollection) return next;
+
+            const cid = typeof cardId === "string" ? Number(cardId) : cardId;
+            const rawCollection = (ps.propertyCollection as any).collection ?? ps.propertyCollection;
+            if (!rawCollection || typeof rawCollection !== "object") return next;
+
+            const collectionCopy: Record<string, any> = { ...rawCollection };
+            let movedCard: any = null;
+            let actualFromSetId: string | null = fromSetId ?? null;
+
+            Object.entries(collectionCopy).forEach(([setId, setVal]) => {
+              if (movedCard) return;
+              const props = Array.isArray(setVal)
+                ? setVal
+                : Array.isArray((setVal as any).properties)
+                  ? (setVal as any).properties
+                  : [];
+              const idx = props.findIndex((c: any) => (c?.id ?? c) === cid);
+              if (idx >= 0) {
+                movedCard = props[idx];
+                actualFromSetId = setId;
+              }
+            });
+
+            if (!movedCard) return next;
+
+            const removeFromSet = (setVal: any) => {
+              if (Array.isArray(setVal)) {
+                return setVal.filter((c: any) => (c?.id ?? c) !== cid);
+              }
+              if (setVal && Array.isArray(setVal.properties)) {
+                return {
+                  ...setVal,
+                  properties: setVal.properties.filter((c: any) => (c?.id ?? c) !== cid),
+                };
+              }
+              return setVal;
+            };
+
+            const isSetEmpty = (setVal: any) => {
+              if (Array.isArray(setVal)) {
+                return setVal.length === 0;
+              }
+              const props = Array.isArray(setVal?.properties) ? setVal.properties : [];
+              return props.length === 0 && !setVal?.house && !setVal?.hotel;
+            };
+
+            if (actualFromSetId && collectionCopy[actualFromSetId]) {
+              const updated = removeFromSet(collectionCopy[actualFromSetId]);
+              if (isSetEmpty(updated)) {
+                delete collectionCopy[actualFromSetId];
+              } else {
+                collectionCopy[actualFromSetId] = updated;
+              }
+            }
+
+            const dest = collectionCopy[toSetId];
+            if (!dest) {
+              collectionCopy[toSetId] = {
+                propertySetId: toSetId,
+                color: (payload.newIdentityIfWild as string | null | undefined) ?? null,
+                isComplete: false,
+                properties: [movedCard],
+                house: null,
+                hotel: null,
+              };
+            } else if (Array.isArray(dest)) {
+              collectionCopy[toSetId] = [...dest, movedCard];
+            } else if (Array.isArray((dest as any).properties)) {
+              collectionCopy[toSetId] = {
+                ...(dest as any),
+                properties: [...(dest as any).properties, movedCard],
+              };
+            }
+
+            if ((ps.propertyCollection as any).collection) {
+              ps.propertyCollection = {
+                ...(ps.propertyCollection as any),
+                collection: collectionCopy,
+              } as any;
+            } else {
+              ps.propertyCollection = collectionCopy as any;
+            }
+            next.playerState[playerId] = ps;
+            return next;
+          });
+          return;
+        }
         // Handle server PATCH frames with event array (optimistic updates)
         if ((msg as any).type === "PATCH" && Array.isArray((msg as any).events)) {
           const events = (msg as any).events as any[];
@@ -1194,8 +1293,29 @@ const PlayScreen: React.FC = () => {
       if (!ps.propertyCollection) return next;
 
       const cid = positioningCard.card.id;
-      const fromId = positioningCard.fromSetId;
-      const toId = positionTarget.toSetId;
+      const toSetId = positionTarget.toSetId;
+      const rawCollection = (ps.propertyCollection as any).collection ?? ps.propertyCollection;
+      if (!rawCollection || typeof rawCollection !== "object") return next;
+
+      const collectionCopy: Record<string, any> = { ...rawCollection };
+      let movedCard: any = null;
+      let actualFromSetId: string | null = positioningCard.fromSetId ?? null;
+
+      Object.entries(collectionCopy).forEach(([setId, setVal]) => {
+        if (movedCard) return;
+        const props = Array.isArray(setVal)
+          ? setVal
+          : Array.isArray((setVal as any).properties)
+            ? (setVal as any).properties
+            : [];
+        const idx = props.findIndex((c: any) => (c?.id ?? c) === cid);
+        if (idx >= 0) {
+          movedCard = props[idx];
+          actualFromSetId = setId;
+        }
+      });
+
+      if (!movedCard) return next;
 
       const removeFromSet = (setVal: any) => {
         if (Array.isArray(setVal)) {
@@ -1210,34 +1330,55 @@ const PlayScreen: React.FC = () => {
         return setVal;
       };
 
-      const addToSet = (setVal: any) => {
-        const card = positioningCard.card;
+      const isSetEmpty = (setVal: any) => {
         if (Array.isArray(setVal)) {
-          return [...setVal, card];
+          return setVal.length === 0;
         }
-        if (setVal && Array.isArray(setVal.properties)) {
-          return { ...setVal, properties: [...setVal.properties, card] };
+        const props = Array.isArray(setVal?.properties) ? setVal.properties : [];
+        return props.length === 0 && !setVal?.house && !setVal?.hotel;
+      };
+
+      if (actualFromSetId && collectionCopy[actualFromSetId]) {
+        const updated = removeFromSet(collectionCopy[actualFromSetId]);
+        if (isSetEmpty(updated)) {
+          delete collectionCopy[actualFromSetId];
+        } else {
+          collectionCopy[actualFromSetId] = updated;
         }
-        return {
-          color: positionTarget.toColor ?? (card.colors?.[0] ?? null),
+      }
+
+      const dest = collectionCopy[toSetId];
+      if (!dest) {
+        collectionCopy[toSetId] = {
+          propertySetId: toSetId,
+          color: positionTarget.toColor ?? (movedCard.colors?.[0] ?? null),
           isComplete: false,
-          properties: [card],
+          properties: [movedCard],
           house: null,
           hotel: null,
         };
-      };
-
-      const collection: Record<string, any> = { ...ps.propertyCollection };
-      if (fromId && collection[fromId]) {
-        collection[fromId] = removeFromSet(collection[fromId]);
+      } else if (Array.isArray(dest)) {
+        collectionCopy[toSetId] = [...dest, movedCard];
+      } else if (Array.isArray((dest as any).properties)) {
+        collectionCopy[toSetId] = {
+          ...(dest as any),
+          properties: [...(dest as any).properties, movedCard],
+        };
       }
-      collection[toId] = addToSet(collection[toId]);
-      ps.propertyCollection = collection;
+
+      if ((ps.propertyCollection as any).collection) {
+        ps.propertyCollection = {
+          ...(ps.propertyCollection as any),
+          collection: collectionCopy,
+        } as any;
+      } else {
+        ps.propertyCollection = collectionCopy as any;
+      }
       next.playerState[pid] = ps;
       return next;
     });
     closePositioning();
-  }, [closePositioning, isMyTurn, myPID, positionTarget, positioningCard, setGame, wsSend]);
+  }, [closePositioning, isMyTurn, myPID, positioningCard, positionTarget, setGame, wsSend]);
 
   const openRentMenu = useCallback((card: ServerCard) => {
     if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
