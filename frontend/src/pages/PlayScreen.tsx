@@ -1176,7 +1176,23 @@ const PlayScreen: React.FC = () => {
     setMenuCard(card);
     if (card.type === "PROPERTY") {
       const colors = card.colors ?? [];
-      setColorChoices(colors.length > 1 ? colors : null);
+      if (colors.length <= 1) {
+        setColorChoices(null);
+        return;
+      }
+      if (isRainbowCard(colors)) {
+        // Ten-color wild: only show colors that can join an existing incomplete set
+        const allowedColors = Array.from(
+          new Set(
+            myPropertySets
+              .filter((set) => !set.isComplete && set.color && colors.includes(set.color))
+              .map((set) => set.color as string)
+          )
+        );
+        setColorChoices(allowedColors.length > 0 ? allowedColors : null);
+      } else {
+        setColorChoices(colors);
+      }
     } else setColorChoices(null);
   };
 
@@ -1243,7 +1259,23 @@ const PlayScreen: React.FC = () => {
       setMenuCard(null);
       return;
     }
-  wsSend({ type: "PlayProperty", id: menuCard.id, color: chosen });
+    const colors = menuCard.colors ?? [];
+    if (isRainbowCard(colors)) {
+      // Ten-color wild: only allow playing into an existing incomplete set
+      const allowedColors = Array.from(
+        new Set(
+          myPropertySets
+            .filter((set) => !set.isComplete && set.color && colors.includes(set.color))
+            .map((set) => set.color as string)
+        )
+      );
+      if (!allowedColors.includes(chosen)) {
+        setMenuCard(null);
+        setColorChoices(null);
+        return;
+      }
+    }
+    wsSend({ type: "PlayProperty", id: menuCard.id, color: chosen });
     setMenuCard(null);
     setColorChoices(null);
   };
