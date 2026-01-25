@@ -34,12 +34,26 @@
 .mat-hand-row {
   pointer-events: auto;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   padding: 8px 12px;
   border-radius: var(--mat-radius-panel);
   background: rgba(17,19,23,.75);
   backdrop-filter: blur(4px);
   box-shadow: var(--mat-shadow-e2);
+}
+
+.mat-hand-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  margin-right: 6px;
+}
+
+.mat-hand-cards {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
 }
 
 .zone {

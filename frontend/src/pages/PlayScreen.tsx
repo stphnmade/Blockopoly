@@ -2375,45 +2375,49 @@ const PlayScreen: React.FC = () => {
       {/* Hand and inline End Turn button (joined to hand overlay) */}
       <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
         <div className="mat-hand-row">
-          <div className="flex items-center gap-3 mr-2">
+          <div className="mat-hand-side">
+            <div className="flex items-center gap-3 mr-2">
+              <button
+                className="hand-collapse-btn"
+                onClick={() => setHandExpanded((s) => !s)}
+                aria-expanded={handExpanded ? "true" : "false"}
+                title={handExpanded ? "Hide hand" : "Show hand"}
+              >
+                {handExpanded ? "Hide" : `${myName || "Your"} hand`}
+              </button>
+              <div className="text-sm font-medium">{myName || "Your hand"}</div>
+            </div>
             <button
-              className="hand-collapse-btn"
-              onClick={() => setHandExpanded((s) => !s)}
-              aria-expanded={handExpanded ? "true" : "false"}
-              title={handExpanded ? "Hide hand" : "Show hand"}
+              type="button"
+              className="end-turn-button"
+              onClick={sendEndTurn}
+              disabled={!isMyTurn || isDiscarding || isPositioning}
             >
-              {handExpanded ? "Hide" : `${myName || "Your"} hand`}
+              End Turn
             </button>
-            <div className="text-sm font-medium">{myName || "Your hand"}</div>
           </div>
-          <button
-            type="button"
-            className="end-turn-button"
-            onClick={sendEndTurn}
-            disabled={!isMyTurn || isDiscarding || isPositioning}
-          >
-            End Turn
-          </button>
-          {handExpanded &&
-            myHand.map((card, idx) => {
-              const isPassGo =
-                card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
-              const canDrag =
-                isMyTurn &&
-                playsLeft > 0 &&
-                (card.type === "MONEY" ||
-                  card.type === "PROPERTY" ||
-                  card.type === "RENT_ACTION" ||
-                  isPassGo);
-              return (
-                <DraggableCard
-                  key={`${card.id}-${idx}`}
-                  card={card}
-                  canDrag={canDrag}
-                  onClick={() => onCardClick(card)}
-                />
-              );
-            })}
+          <div className="mat-hand-cards">
+            {handExpanded &&
+              myHand.map((card, idx) => {
+                const isPassGo =
+                  card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
+                const canDrag =
+                  isMyTurn &&
+                  playsLeft > 0 &&
+                  (card.type === "MONEY" ||
+                    card.type === "PROPERTY" ||
+                    card.type === "RENT_ACTION" ||
+                    isPassGo);
+                return (
+                  <DraggableCard
+                    key={`${card.id}-${idx}`}
+                    card={card}
+                    canDrag={canDrag}
+                    onClick={() => onCardClick(card)}
+                  />
+                );
+              })}
+          </div>
         </div>
       </div>
 
