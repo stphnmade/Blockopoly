@@ -45,6 +45,20 @@ const WinnerScreen: React.FC = () => {
 
   const autoJoinedRef = useRef(false);
 
+  // One-shot winner sound when the screen mounts
+  useEffect(() => {
+    if (typeof Audio === "undefined") return;
+    try {
+      const audio = new Audio("/sfx/winner_sound.mp3");
+      audio.volume = 0.9;
+      void audio.play().catch(() => {
+        // ignore autoplay errors
+      });
+    } catch {
+      // ignore audio errors
+    }
+  }, []);
+
   // Listen for a fresh game STATE and auto-join when the game is restarted
   useEffect(() => {
     if (!roomId || !myPID) return;

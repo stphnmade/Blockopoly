@@ -15,7 +15,7 @@ Required filenames:
 - double_rent.mp3 []
 - wild_rent.mp3 [x]
 - rent.mp3 [x]
-- winner_sound.mp3 []
+- winner_sound.mp3 [x]
 
 Background music (optional but recommended):
 - game_bgm.mp3 [x]
