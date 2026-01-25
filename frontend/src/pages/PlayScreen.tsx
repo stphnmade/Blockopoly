@@ -273,6 +273,8 @@ const PlayScreen: React.FC = () => {
   const [rentDoublers, setRentDoublers] = useState<number[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
     // activeCard state removed with drag/drop
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -280,6 +282,8 @@ const PlayScreen: React.FC = () => {
   const shouldReconnectRef = useRef(true);
   const toastTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const toastIdRef = useRef(0);
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const bgmWasPlayingRef = useRef(false);
 
   const wsUrl = useMemo(
     () =>
@@ -296,16 +300,40 @@ const PlayScreen: React.FC = () => {
   }, []);
   const restartRequestedRef = useRef(false);
 
-  const playSound = useCallback((src: string, volume = 0.85) => {
-    if (!src || typeof Audio === "undefined") return;
-    try {
-      const audio = new Audio(src);
-      audio.volume = volume;
-      void audio.play();
-    } catch {
-      /* ignore audio errors */
-    }
-  }, []);
+  const playSound = useCallback(
+    (src: string, baseVolume = 0.85) => {
+      if (!src || typeof Audio === "undefined" || isMuted) return;
+      try {
+        const audio = new Audio(src);
+        audio.volume = Math.min(1, Math.max(0, baseVolume * volume));
+
+        const bgm = bgmRef.current;
+        if (bgm && !bgm.paused) {
+          bgmWasPlayingRef.current = true;
+          bgm.pause();
+          const resumeBgm = () => {
+            const currentBgm = bgmRef.current;
+            if (currentBgm && bgmWasPlayingRef.current && !isMuted) {
+              void currentBgm.play().catch(() => {
+                /* ignore resume errors */
+              });
+            }
+            audio.removeEventListener("ended", resumeBgm);
+            audio.removeEventListener("error", resumeBgm);
+          };
+          audio.addEventListener("ended", resumeBgm);
+          audio.addEventListener("error", resumeBgm);
+        } else {
+          bgmWasPlayingRef.current = false;
+        }
+
+        void audio.play();
+      } catch {
+        /* ignore audio errors */
+      }
+    },
+    [isMuted]
+  );
 
   const playActionSound = useCallback(
     (actionType?: string | null) => {
@@ -2342,6 +2370,47 @@ const PlayScreen: React.FC = () => {
   const devLabel = devType ? formatActionLabel(devType) : "Development";
   const devRespondingTo = (devJsnInteraction?.toPlayer as string | undefined) ?? myPID;
 
+  // Background music: looped track for the game screen
+  useEffect(() => {
+    if (typeof Audio === "undefined") return;
+    if (bgmRef.current) return;
+
+    try {
+      const bgm = new Audio("/sfx/game_bgm.mp3");
+      bgm.loop = true;
+      bgm.volume = 0.35 * volume;
+      bgmRef.current = bgm;
+
+      void bgm
+        .play()
+        .catch(() => {
+          // Autoplay may be blocked until user interaction; ignore.
+        });
+    } catch {
+      // ignore audio setup errors
+    }
+
+    return () => {
+      if (bgmRef.current) {
+        bgmRef.current.pause();
+        bgmRef.current = null;
+      }
+    };
+  }, []);
+
+  // React to mute toggle for background music
+  useEffect(() => {
+    const bgm = bgmRef.current;
+    if (!bgm) return;
+    bgm.muted = isMuted;
+    bgm.volume = 0.35 * volume;
+    if (!isMuted && bgm.paused) {
+      void bgm.play().catch(() => {
+        /* ignore resume errors */
+      });
+    }
+  }, [isMuted, volume]);
+
   return (
     <div className="play-screen">
       {/* Top bar */}
@@ -2386,6 +2455,34 @@ const PlayScreen: React.FC = () => {
           playerCardMap={playerCardMap}
           cardImageForId={(id) => cardAssetMap[id] ?? cardBack}
         />
+
+        <div className="sound-controls">
+          <button
+            type="button"
+            className="sound-toggle-button"
+            onClick={() => setIsMuted((prev) => !prev)}
+          >
+            {isMuted ? "Unmute" : "Mute"}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            className="sound-volume-slider"
+            value={Math.round(volume * 100)}
+            onChange={(e) => {
+              const next = Number(e.target.value) / 100;
+              setVolume(next);
+              if (next === 0) {
+                setIsMuted(true);
+              } else if (isMuted) {
+                setIsMuted(false);
+              }
+            }}
+            aria-label="Game volume"
+          />
+        </div>
       </div>
 
       {toasts.length > 0 && (
