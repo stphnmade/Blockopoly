@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { DealTargetEntry, ServerCard } from "../types";
 
 type Props = {
@@ -43,6 +44,27 @@ export default function ForcedDealModal({
 }: Props) {
   if (!isOpen || !forcedCard) return null;
 
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">Forced Deal</span>
+      </button>
+    );
+  }
+
   return (
     <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="forced-title">
       <div className="rent-modal">
@@ -55,8 +77,17 @@ export default function ForcedDealModal({
               Swap one of your incomplete properties with an opponent.
             </div>
           </div>
-          <div className="rent-card-preview">
-            <img src={assetForCard(forcedCard)} alt="Forced Deal card" draggable={false} />
+          <div>
+            <div className="rent-card-preview">
+              <img src={assetForCard(forcedCard)} alt="Forced Deal card" draggable={false} />
+            </div>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
           </div>
         </div>
         <div className="rent-body">

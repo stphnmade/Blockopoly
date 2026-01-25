@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { DealTargetEntry, ServerCard } from "../types";
 
 type Props = {
@@ -37,6 +38,27 @@ export default function SlyDealModal({
 }: Props) {
   if (!isOpen || !slyCard) return null;
 
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">Sly Deal</span>
+      </button>
+    );
+  }
+
   return (
     <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="sly-title">
       <div className="rent-modal">
@@ -49,8 +71,17 @@ export default function SlyDealModal({
               Choose a single property from an opponent (incomplete sets only).
             </div>
           </div>
-          <div className="rent-card-preview">
-            <img src={assetForCard(slyCard)} alt="Sly Deal card" draggable={false} />
+          <div>
+            <div className="rent-card-preview">
+              <img src={assetForCard(slyCard)} alt="Sly Deal card" draggable={false} />
+            </div>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
           </div>
         </div>
         <div className="rent-body">

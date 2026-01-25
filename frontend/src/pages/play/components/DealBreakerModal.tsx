@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { PropertySetView, ServerCard } from "../types";
 
 export type DealBreakerTarget = {
@@ -34,6 +35,27 @@ export default function DealBreakerModal({
 }: Props) {
   if (!isOpen || !dealBreakerCard) return null;
 
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">Deal Breaker</span>
+      </button>
+    );
+  }
+
   return (
     <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="dealbreaker-title">
       <div className="rent-modal">
@@ -44,8 +66,21 @@ export default function DealBreakerModal({
             </div>
             <div className="rent-subtitle">Steal a completed set from an opponent.</div>
           </div>
-          <div className="rent-card-preview">
-            <img src={assetForCard(dealBreakerCard)} alt="Deal Breaker card" draggable={false} />
+          <div>
+            <div className="rent-card-preview">
+              <img
+                src={assetForCard(dealBreakerCard)}
+                alt="Deal Breaker card"
+                draggable={false}
+              />
+            </div>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
           </div>
         </div>
         <div className="rent-body">

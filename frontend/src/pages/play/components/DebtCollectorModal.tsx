@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ServerCard } from "../types";
 
 type Props = {
@@ -31,6 +32,27 @@ export default function DebtCollectorModal({
 }: Props) {
   if (!isOpen || !debtCard) return null;
 
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">Debt Collector</span>
+      </button>
+    );
+  }
+
   return (
     <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="debt-title">
       <div className="rent-modal">
@@ -41,8 +63,17 @@ export default function DebtCollectorModal({
             </div>
             <div className="rent-subtitle">Choose a target to collect {amount}M.</div>
           </div>
-          <div className="rent-card-preview">
-            <img src={assetForCard(debtCard)} alt="Debt collector card" draggable={false} />
+          <div>
+            <div className="rent-card-preview">
+              <img src={assetForCard(debtCard)} alt="Debt collector card" draggable={false} />
+            </div>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
           </div>
         </div>
         <div className="rent-body">

@@ -959,6 +959,52 @@ body,
   color: #cbd5e1;
 }
 
+.modal-minimize {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.modal-minimize:hover {
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.modal-minimized-banner {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1300;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.97);
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.6);
+}
+
+.modal-minimized-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #22c55e;
+}
+
+.modal-minimized-label {
+  white-space: nowrap;
+}
+
 .charge-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));

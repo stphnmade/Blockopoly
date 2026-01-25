@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ServerCard } from "../types";
 
 type Props = {
@@ -51,7 +52,28 @@ export default function ChargeModal({
   onTogglePropertyCard,
   onSubmit,
 }: Props) {
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">{title}</span>
+      </button>
+    );
+  }
 
   return (
     <div className="charge-overlay" role="dialog" aria-modal="true" aria-labelledby="charge-title">
@@ -63,14 +85,23 @@ export default function ChargeModal({
             </div>
             <div className="charge-subtitle">{subtitle}</div>
           </div>
-          <button
-            type="button"
-            className="charge-jsn"
-            onClick={onPlayJsn}
-            disabled={jsnCount === 0}
-          >
-            Just Say No ({jsnCount})
-          </button>
+          <div>
+            <button
+              type="button"
+              className="charge-jsn"
+              onClick={onPlayJsn}
+              disabled={jsnCount === 0}
+            >
+              Just Say No ({jsnCount})
+            </button>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
+          </div>
         </div>
         <div className="charge-body">
           <div className="charge-section">

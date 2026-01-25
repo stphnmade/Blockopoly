@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { RentColorOption, ServerCard } from "../types";
 
 type Props = {
@@ -61,6 +62,27 @@ export default function RentModal({
 }: Props) {
   if (!isOpen || !rentCard) return null;
 
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">Charge Rent</span>
+      </button>
+    );
+  }
+
   return (
     <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="rent-title">
       <div className="rent-modal">
@@ -71,8 +93,17 @@ export default function RentModal({
             </div>
             <div className="rent-subtitle">Choose a rent color and target to charge.</div>
           </div>
-          <div className="rent-card-preview">
-            <img src={assetForCard(rentCard)} alt="Rent card" draggable={false} />
+          <div>
+            <div className="rent-card-preview">
+              <img src={assetForCard(rentCard)} alt="Rent card" draggable={false} />
+            </div>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
           </div>
         </div>
         <div className="rent-body">

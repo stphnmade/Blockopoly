@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 type Props = {
   isOpen: boolean;
   title: string;
@@ -15,7 +17,28 @@ export default function JsnChainModal({
   onAcceptBlock,
   onPlayJsn,
 }: Props) {
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">Just Say No chain</span>
+      </button>
+    );
+  }
 
   return (
     <div className="jsn-overlay" role="dialog" aria-modal="true" aria-labelledby="jsn-chain-title">
@@ -27,6 +50,13 @@ export default function JsnChainModal({
           <div className="jsn-subtitle">{subtitle}</div>
         </div>
         <div className="jsn-actions">
+          <button
+            type="button"
+            className="modal-minimize"
+            onClick={() => setIsMinimized(true)}
+          >
+            Minimize
+          </button>
           <button type="button" className="jsn-secondary" onClick={onAcceptBlock}>
             Accept Block
           </button>

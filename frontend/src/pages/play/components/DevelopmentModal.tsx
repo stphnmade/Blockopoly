@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { PropertySetView, ServerCard } from "../types";
 
 type Props = {
@@ -29,6 +30,27 @@ export default function DevelopmentModal({
 }: Props) {
   if (!isOpen || !developmentCard) return null;
 
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsMinimized(false);
+    }
+  }, [isOpen]);
+
+  if (isMinimized) {
+    return (
+      <button
+        type="button"
+        className="modal-minimized-banner"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="modal-minimized-dot" />
+        <span className="modal-minimized-label">{developmentLabel}</span>
+      </button>
+    );
+  }
+
   return (
     <div className="rent-overlay" role="dialog" aria-modal="true" aria-labelledby="dev-title">
       <div className="rent-modal">
@@ -39,8 +61,21 @@ export default function DevelopmentModal({
             </div>
             <div className="rent-subtitle">Select a completed set to upgrade.</div>
           </div>
-          <div className="rent-card-preview">
-            <img src={assetForCard(developmentCard)} alt={`${developmentLabel} card`} draggable={false} />
+          <div>
+            <div className="rent-card-preview">
+              <img
+                src={assetForCard(developmentCard)}
+                alt={`${developmentLabel} card`}
+                draggable={false}
+              />
+            </div>
+            <button
+              type="button"
+              className="modal-minimize"
+              onClick={() => setIsMinimized(true)}
+            >
+              Minimize
+            </button>
           </div>
         </div>
         <div className="rent-body">
