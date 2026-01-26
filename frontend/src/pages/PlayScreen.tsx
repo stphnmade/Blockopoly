@@ -301,11 +301,34 @@ const PlayScreen: React.FC = () => {
   const restartRequestedRef = useRef(false);
 
   const playSound = useCallback(
-    (src: string, baseVolume = 0.85) => {
+    (src: string, baseVolume = 0.85, fadeIn = false) => {
       if (!src || typeof Audio === "undefined" || isMuted) return;
       try {
         const audio = new Audio(src);
-        audio.volume = Math.min(1, Math.max(0, baseVolume * volume));
+        const targetVolume = Math.min(1, Math.max(0, baseVolume * volume));
+
+        if (fadeIn) {
+          audio.volume = 0;
+          const steps = 8;
+          const durationMs = 220;
+          const stepDuration = durationMs / steps;
+          const increment = targetVolume / steps;
+          let currentStep = 0;
+          const fadeTimer = setInterval(() => {
+            if (audio.paused || currentStep >= steps) {
+              audio.volume = targetVolume;
+              clearInterval(fadeTimer);
+              return;
+            }
+            currentStep += 1;
+            audio.volume = Math.min(targetVolume, audio.volume + increment);
+          }, stepDuration);
+          const clearFade = () => clearInterval(fadeTimer);
+          audio.addEventListener("ended", clearFade);
+          audio.addEventListener("error", clearFade);
+        } else {
+          audio.volume = targetVolume;
+        }
 
         const bgm = bgmRef.current;
         if (bgm && !bgm.paused) {
@@ -332,14 +355,16 @@ const PlayScreen: React.FC = () => {
         /* ignore audio errors */
       }
     },
-    [isMuted]
+    [isMuted, volume]
   );
 
   const playActionSound = useCallback(
     (actionType?: string | null) => {
       const primary = resolveActionSfx(actionType);
-      playSound(primary, 0.9);
-      playSound(SFX_ACTION_OVERLAY, 0.5);
+      // Fade in the main action sound so it feels smoother,
+      // while briefly pausing and then resuming the background music.
+      playSound(primary, 0.9, true);
+      playSound(SFX_ACTION_OVERLAY, 0.5, false);
     },
     [playSound]
   );
