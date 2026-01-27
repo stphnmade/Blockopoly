@@ -275,6 +275,7 @@ const PlayScreen: React.FC = () => {
     // activeCard state removed with drag/drop
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
+  const [isSubmittingCharge, setIsSubmittingCharge] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -285,6 +286,7 @@ const PlayScreen: React.FC = () => {
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const bgmWasPlayingRef = useRef(false);
   const bgmResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rentChargeKeyRef = useRef<string | null>(null);
 
   const wsUrl = useMemo(
     () =>
@@ -1371,102 +1373,8 @@ const PlayScreen: React.FC = () => {
       ...(positionTarget.toColor ? { toColor: positionTarget.toColor } : {}),
     };
     wsSend(action);
-    // Optimistically update local game state so repositioned card shows immediately
-    setGame((g) => {
-      if (!g) return g;
-      const pid = myPID;
-      if (!pid || !g.playerState?.[pid]) return g;
-      const next = { ...g, playerState: { ...g.playerState } } as ServerGameState;
-      const ps = next.playerState[pid];
-      if (!ps.propertyCollection) return next;
-
-      const cid = positioningCard.card.id;
-      const toSetId = positionTarget.toSetId;
-      const rawCollection = (ps.propertyCollection as any).collection ?? ps.propertyCollection;
-      if (!rawCollection || typeof rawCollection !== "object") return next;
-
-      const collectionCopy: Record<string, any> = { ...rawCollection };
-      let movedCard: any = null;
-      let actualFromSetId: string | null = positioningCard.fromSetId ?? null;
-
-      Object.entries(collectionCopy).forEach(([setId, setVal]) => {
-        if (movedCard) return;
-        const props = Array.isArray(setVal)
-          ? setVal
-          : Array.isArray((setVal as any).properties)
-            ? (setVal as any).properties
-            : [];
-        const idx = props.findIndex((c: any) => (c?.id ?? c) === cid);
-        if (idx >= 0) {
-          movedCard = props[idx];
-          actualFromSetId = setId;
-        }
-      });
-
-      if (!movedCard) return next;
-
-      const removeFromSet = (setVal: any) => {
-        if (Array.isArray(setVal)) {
-          return setVal.filter((c: any) => (c?.id ?? c) !== cid);
-        }
-        if (setVal && Array.isArray(setVal.properties)) {
-          return {
-            ...setVal,
-            properties: setVal.properties.filter((c: any) => (c?.id ?? c) !== cid),
-          };
-        }
-        return setVal;
-      };
-
-      const isSetEmpty = (setVal: any) => {
-        if (Array.isArray(setVal)) {
-          return setVal.length === 0;
-        }
-        const props = Array.isArray(setVal?.properties) ? setVal.properties : [];
-        return props.length === 0 && !setVal?.house && !setVal?.hotel;
-      };
-
-      if (actualFromSetId && collectionCopy[actualFromSetId]) {
-        const updated = removeFromSet(collectionCopy[actualFromSetId]);
-        if (isSetEmpty(updated)) {
-          delete collectionCopy[actualFromSetId];
-        } else {
-          collectionCopy[actualFromSetId] = updated;
-        }
-      }
-
-      const dest = collectionCopy[toSetId];
-      if (!dest) {
-        collectionCopy[toSetId] = {
-          propertySetId: toSetId,
-          color: positionTarget.toColor ?? (movedCard.colors?.[0] ?? null),
-          isComplete: false,
-          properties: [movedCard],
-          house: null,
-          hotel: null,
-        };
-      } else if (Array.isArray(dest)) {
-        collectionCopy[toSetId] = [...dest, movedCard];
-      } else if (Array.isArray((dest as any).properties)) {
-        collectionCopy[toSetId] = {
-          ...(dest as any),
-          properties: [...(dest as any).properties, movedCard],
-        };
-      }
-
-      if ((ps.propertyCollection as any).collection) {
-        ps.propertyCollection = {
-          ...(ps.propertyCollection as any),
-          collection: collectionCopy,
-        } as any;
-      } else {
-        ps.propertyCollection = collectionCopy as any;
-      }
-      next.playerState[pid] = ps;
-      return next;
-    });
     closePositioning();
-  }, [closePositioning, isMyTurn, myPID, positioningCard, positionTarget, setGame, wsSend]);
+  }, [closePositioning, isMyTurn, positioningCard, positionTarget, wsSend]);
 
   const openRentMenu = useCallback((card: ServerCard) => {
     if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
@@ -1770,13 +1678,18 @@ const PlayScreen: React.FC = () => {
   );
 
   const submitRentPayment = useCallback(() => {
-    if (!rentCharge || !canPayRent) return;
+    if (!rentCharge || !canPayRent || isSubmittingCharge) return;
     const payment = [...rentBankSelection, ...rentPropertySelection];
+    setIsSubmittingCharge(true);
     wsSend({ type: "AcceptCharge", payment });
-    setRentCharge(null);
-    setRentBankSelection([]);
-    setRentPropertySelection([]);
-  }, [canPayRent, rentBankSelection, rentCharge, rentPropertySelection, wsSend]);
+  }, [
+    canPayRent,
+    isSubmittingCharge,
+    rentBankSelection,
+    rentCharge,
+    rentPropertySelection,
+    wsSend,
+  ]);
 
   const sendJustSayNo = useCallback(
     (respondingTo?: string) => {
@@ -1791,12 +1704,10 @@ const PlayScreen: React.FC = () => {
   );
 
   const playRentJustSayNo = useCallback(() => {
-    if (!rentCharge) return;
+    if (!rentCharge || isSubmittingCharge) return;
+    setIsSubmittingCharge(true);
     sendJustSayNo();
-    setRentCharge(null);
-    setRentBankSelection([]);
-    setRentPropertySelection([]);
-  }, [rentCharge, sendJustSayNo]);
+  }, [isSubmittingCharge, rentCharge, sendJustSayNo]);
 
   const acceptJustSayNo = useCallback(
     (respondingTo: string) => {
@@ -2106,6 +2017,8 @@ const PlayScreen: React.FC = () => {
     const pending = pendingInteractions;
     if (pending.length === 0) {
       setRentCharge(null);
+      rentChargeKeyRef.current = null;
+      setIsSubmittingCharge(false);
       return;
     }
     const rentInteraction = pending.find(
@@ -2118,6 +2031,8 @@ const PlayScreen: React.FC = () => {
     );
     if (!rentInteraction) {
       setRentCharge(null);
+      rentChargeKeyRef.current = null;
+      setIsSubmittingCharge(false);
       return;
     }
     const action = rentInteraction.action ?? {};
@@ -2140,6 +2055,11 @@ const PlayScreen: React.FC = () => {
       color: isBirthday || isDebtCollector ? null : action.color ?? null,
       kind: nextKind,
     };
+    const key = `${next.kind}:${next.requesterId}:${next.amount}:${next.color ?? ""}`;
+    if (rentChargeKeyRef.current !== key) {
+      rentChargeKeyRef.current = key;
+      setIsSubmittingCharge(false);
+    }
     setRentCharge((prev) =>
       prev &&
       prev.requesterId === next.requesterId &&
@@ -2149,7 +2069,7 @@ const PlayScreen: React.FC = () => {
         ? prev
         : next
     );
-  }, [myPID, pendingInteractions]);
+  }, [myPID, pendingInteractions, setIsSubmittingCharge]);
 
   useEffect(() => {
     if (!rentCharge) {
@@ -2666,6 +2586,7 @@ const PlayScreen: React.FC = () => {
         rentMustPayAll={rentMustPayAll}
         hasNonPayableWilds={hasNonPayableWilds}
         canPayRent={canPayRent}
+        isSubmitting={isSubmittingCharge}
         assetForCard={assetForCard}
         getCardValue={getCardValue}
         onToggleBankCard={toggleRentBankCard}

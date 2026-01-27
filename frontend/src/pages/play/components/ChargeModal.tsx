@@ -20,6 +20,7 @@ type Props = {
   rentMustPayAll: boolean;
   hasNonPayableWilds: boolean;
   canPayRent: boolean;
+  isSubmitting: boolean;
   assetForCard: (card: ServerCard) => string;
   getCardValue: (card: ServerCard) => number;
   onToggleBankCard: (cardId: number) => void;
@@ -46,6 +47,7 @@ export default function ChargeModal({
   rentMustPayAll,
   hasNonPayableWilds,
   canPayRent,
+  isSubmitting,
   assetForCard,
   getCardValue,
   onToggleBankCard,
@@ -90,7 +92,7 @@ export default function ChargeModal({
               type="button"
               className="charge-jsn"
               onClick={onPlayJsn}
-              disabled={jsnCount === 0}
+              disabled={jsnCount === 0 || isSubmitting}
             >
               Just Say No ({jsnCount})
             </button>
@@ -118,7 +120,7 @@ export default function ChargeModal({
                       type="button"
                       className={`charge-card ${selected ? "selected" : ""}`}
                       onClick={() => onToggleBankCard(card.id)}
-                      disabled={rentMustPayAll}
+                      disabled={rentMustPayAll || isSubmitting}
                       aria-pressed={selected}
                     >
                       <img src={assetForCard(card)} alt="Bank card" draggable={false} />
@@ -149,7 +151,7 @@ export default function ChargeModal({
                       type="button"
                       className={`charge-card ${selected ? "selected" : ""}`}
                       onClick={() => onTogglePropertyCard(card.id)}
-                      disabled={rentMustPayAll}
+                      disabled={rentMustPayAll || isSubmitting}
                       aria-pressed={selected}
                     >
                       <img src={assetForCard(card)} alt="Property card" draggable={false} />
@@ -171,7 +173,7 @@ export default function ChargeModal({
             type="button"
             className="charge-primary"
             onClick={onSubmit}
-            disabled={!canPayRent}
+            disabled={!canPayRent || isSubmitting}
           >
             {payLabel}
           </button>
