@@ -284,6 +284,7 @@ const PlayScreen: React.FC = () => {
   const toastIdRef = useRef(0);
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const bgmWasPlayingRef = useRef(false);
+  const bgmResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wsUrl = useMemo(
     () =>
@@ -332,20 +333,22 @@ const PlayScreen: React.FC = () => {
 
         const bgm = bgmRef.current;
         if (bgm && !bgm.paused) {
+          // Duck background music instead of pausing it
           bgmWasPlayingRef.current = true;
-          bgm.pause();
-          const resumeBgm = () => {
+          const originalVolume = 0.35 * volume;
+          const duckedVolume = Math.max(0, originalVolume * 0.3);
+          bgm.volume = duckedVolume;
+
+          if (bgmResumeTimeoutRef.current) {
+            clearTimeout(bgmResumeTimeoutRef.current);
+          }
+          bgmResumeTimeoutRef.current = setTimeout(() => {
             const currentBgm = bgmRef.current;
             if (currentBgm && bgmWasPlayingRef.current && !isMuted) {
-              void currentBgm.play().catch(() => {
-                /* ignore resume errors */
-              });
+              currentBgm.volume = 0.35 * volume;
             }
-            audio.removeEventListener("ended", resumeBgm);
-            audio.removeEventListener("error", resumeBgm);
-          };
-          audio.addEventListener("ended", resumeBgm);
-          audio.addEventListener("error", resumeBgm);
+            bgmResumeTimeoutRef.current = null;
+          }, 4000);
         } else {
           bgmWasPlayingRef.current = false;
         }
@@ -2416,8 +2419,13 @@ const PlayScreen: React.FC = () => {
     }
 
     return () => {
-      if (bgmRef.current) {
-        bgmRef.current.pause();
+      if (bgmResumeTimeoutRef.current) {
+        clearTimeout(bgmResumeTimeoutRef.current);
+        bgmResumeTimeoutRef.current = null;
+      }
+      const bgm = bgmRef.current;
+      if (bgm) {
+        bgm.pause();
         bgmRef.current = null;
       }
     };
