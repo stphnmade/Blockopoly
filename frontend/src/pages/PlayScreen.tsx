@@ -228,7 +228,11 @@ const PlayScreen: React.FC = () => {
   const [game, setGame] = useState<ServerGameState | null>(null);
   const [myHand, setMyHand] = useState<ServerCard[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [handExpanded, setHandExpanded] = useState(true);
+  const [handExpanded, setHandExpanded] = useState(() => {
+    if (typeof window === "undefined") return true;
+    // On smaller, likely-phone viewports, start with a compact hand
+    return window.innerWidth >= 900;
+  });
   const [wsReady, setWsReady] = useState(false);
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
@@ -2455,7 +2459,11 @@ const PlayScreen: React.FC = () => {
         so it centers relative to the viewport */}
 
       {/* Hand and inline End Turn button (joined to hand overlay) */}
-      <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
+      <div
+        className={`mat-hand-overlay ${isAnimating ? "animating" : ""} ${
+          handExpanded ? "expanded" : "collapsed"
+        }`}
+      >
         <div className="mat-hand-row">
           <div className="mat-hand-side">
             <div className="flex items-center gap-3 mr-2">

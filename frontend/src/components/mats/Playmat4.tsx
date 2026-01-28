@@ -25,6 +25,8 @@ const Playmat4: React.FC<PlaymatProps> = ({
     p4: layout.p4 ?? "",
   };
 
+  const [expandedSeat, setExpandedSeat] = useState<PlayerKey | null>(null);
+
   const [bankOpen, setBankOpen] = useState(false);
   const myBank = playerCardMap?.[myPID]?.bank;
   const myBankImages = myBank?.images ?? [];
@@ -103,36 +105,116 @@ const Playmat4: React.FC<PlaymatProps> = ({
       <img className="backdrop" src={backdrop} alt="4-player backdrop" />
 
       <div className="mat-stage">
-        <div className="player-1-space player-space">
-          <div className="player-name-tag" aria-hidden>
-            {nameFor(pidMap.p1)}
+        <div
+          className="player-1-space player-space"
+          data-expanded={expandedSeat === "p1" ? "true" : "false"}
+        >
+          <button
+            type="button"
+            className="player-chip"
+            onClick={() => setExpandedSeat(expandedSeat === "p1" ? null : "p1")}
+          >
+            <div className="player-chip-avatar">
+              {(nameFor(pidMap.p1) || "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="player-chip-main">
+              <div className="player-chip-name">{nameFor(pidMap.p1)}</div>
+              <div className="player-chip-bank">
+                Bank {(playerCardMap?.[pidMap.p1]?.bank.total ?? 0)}M
+              </div>
+            </div>
+          </button>
+          <div className="player-detail">
+            <div className="player-name-tag" aria-hidden>
+              {nameFor(pidMap.p1)}
+            </div>
+            {renderProperties(pidMap.p1, "p1", pidMap.p1 === myPID ? "me" : "opponent")}
+            {renderBank(pidMap.p1)}
           </div>
-          {renderProperties(pidMap.p1, "p1", pidMap.p1 === myPID ? "me" : "opponent")}
-          {renderBank(pidMap.p1)}
         </div>
 
-        <div className="player-2-space player-space">
-          <div className="player-name-tag" aria-hidden>
-            {nameFor(pidMap.p2)}
+        <div
+          className="player-2-space player-space"
+          data-expanded={expandedSeat === "p2" ? "true" : "false"}
+        >
+          <button
+            type="button"
+            className="player-chip"
+            onClick={() => setExpandedSeat(expandedSeat === "p2" ? null : "p2")}
+          >
+            <div className="player-chip-avatar">
+              {(nameFor(pidMap.p2) || "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="player-chip-main">
+              <div className="player-chip-name">{nameFor(pidMap.p2)}</div>
+              <div className="player-chip-bank">
+                Bank {(playerCardMap?.[pidMap.p2]?.bank.total ?? 0)}M
+              </div>
+            </div>
+          </button>
+          <div className="player-detail">
+            <div className="player-name-tag" aria-hidden>
+              {nameFor(pidMap.p2)}
+            </div>
+            {renderProperties(pidMap.p2, "p2", "opponent")}
+            {renderBank(pidMap.p2)}
           </div>
-          {renderProperties(pidMap.p2, "p2", "opponent")}
-          {renderBank(pidMap.p2)}
         </div>
 
-        <div className="player-3-space player-space">
-          <div className="player-name-tag" aria-hidden>
-            {nameFor(pidMap.p3)}
+        <div
+          className="player-3-space player-space"
+          data-expanded={expandedSeat === "p3" ? "true" : "false"}
+        >
+          <button
+            type="button"
+            className="player-chip"
+            onClick={() => setExpandedSeat(expandedSeat === "p3" ? null : "p3")}
+          >
+            <div className="player-chip-avatar">
+              {(nameFor(pidMap.p3) || "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="player-chip-main">
+              <div className="player-chip-name">{nameFor(pidMap.p3)}</div>
+              <div className="player-chip-bank">
+                Bank {(playerCardMap?.[pidMap.p3]?.bank.total ?? 0)}M
+              </div>
+            </div>
+          </button>
+          <div className="player-detail">
+            <div className="player-name-tag" aria-hidden>
+              {nameFor(pidMap.p3)}
+            </div>
+            {renderProperties(pidMap.p3, "p3", "opponent")}
+            {renderBank(pidMap.p3)}
           </div>
-          {renderProperties(pidMap.p3, "p3", "opponent")}
-          {renderBank(pidMap.p3)}
         </div>
 
-        <div className="player-4-space player-space">
-          <div className="player-name-tag" aria-hidden>
-            {nameFor(pidMap.p4)}
+        <div
+          className="player-4-space player-space"
+          data-expanded={expandedSeat === "p4" ? "true" : "false"}
+        >
+          <button
+            type="button"
+            className="player-chip"
+            onClick={() => setExpandedSeat(expandedSeat === "p4" ? null : "p4")}
+          >
+            <div className="player-chip-avatar">
+              {(nameFor(pidMap.p4) || "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="player-chip-main">
+              <div className="player-chip-name">{nameFor(pidMap.p4)}</div>
+              <div className="player-chip-bank">
+                Bank {(playerCardMap?.[pidMap.p4]?.bank.total ?? 0)}M
+              </div>
+            </div>
+          </button>
+          <div className="player-detail">
+            <div className="player-name-tag" aria-hidden>
+              {nameFor(pidMap.p4)}
+            </div>
+            {renderProperties(pidMap.p4, "p4", "opponent")}
+            {renderBank(pidMap.p4)}
           </div>
-          {renderProperties(pidMap.p4, "p4", "opponent")}
-          {renderBank(pidMap.p4)}
         </div>
 
         <div className="center-pile" aria-label="discard pile">

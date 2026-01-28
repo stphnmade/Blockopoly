@@ -102,6 +102,66 @@ body,
   cursor: not-allowed;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Hand overlay joined to mat (replaces older .hand-overlay usage)
+   Works for both desktop and mobile; mobile tweaks live in media query below.
+   ────────────────────────────────────────────────────────────────────────── */
+.mat-hand-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  display: flex;
+  justify-content: center;
+  padding: 0 10px;
+  pointer-events: none;
+  z-index: 18;
+}
+
+.mat-hand-row {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: min(980px, 100%);
+  padding: 8px 10px;
+  border-radius: 18px;
+  background: radial-gradient(circle at 10% 0%, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.mat-hand-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mat-hand-cards {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.hand-collapse-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.65);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.hand-collapse-btn:hover {
+  background: rgba(30, 41, 59, 0.95);
+}
+
 .hand-overlay {
   position: absolute;
   left: 50%;
@@ -148,6 +208,78 @@ body,
   height: 136px;
   transform: translateY(0) scale(1) !important;
   opacity: 1 !important;
+}
+
+/* Compact, phone-oriented hand when collapsed */
+@media (max-width: 900px) and (orientation: landscape) {
+  .play-screen {
+    --topbar-h: clamp(42px, 9vh, 56px);
+  }
+
+  .play-topbar {
+    font-size: 11px;
+    padding-inline: 8px;
+    gap: 6px;
+  }
+
+  .mat-hand-overlay {
+    justify-content: center;
+    bottom: 8px;
+    padding-inline: 8px;
+  }
+
+  .mat-hand-overlay.collapsed {
+    left: 50%;
+    right: auto;
+    transform: translateX(calc(-50% + 25vw));
+    padding-inline: 0;
+  }
+
+  .mat-hand-overlay.collapsed .mat-hand-row {
+    width: auto;
+    padding: 6px;
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+    justify-content: center;
+  }
+
+  .mat-hand-overlay.collapsed .mat-hand-side > .flex {
+    display: none;
+  }
+
+  .mat-hand-overlay.collapsed .mat-hand-cards {
+    display: none;
+  }
+
+  .mat-hand-overlay.collapsed .hand-collapse-btn {
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+  }
+
+  .mat-hand-overlay.expanded .mat-hand-row {
+    width: min(760px, 100%);
+  }
+
+  .mat-hand-row .hand-card {
+    width: 72px;
+    height: 104px;
+  }
+
+  .sound-controls {
+    left: 10px;
+    bottom: 80px;
+    gap: 6px;
+  }
+
+  .sound-volume-slider {
+    width: 90px;
+  }
 }
 
 .hand-card img {

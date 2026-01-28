@@ -280,6 +280,86 @@
   color: #94a3b8;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Compact player chip UI (used primarily on small, landscape screens)
+   ────────────────────────────────────────────────────────────────────────── */
+.player-chip {
+  display: none;
+}
+
+.player-chip-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 0, #f97316, #ea580c);
+  color: #fefce8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.player-chip-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.player-chip-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.player-chip-bank {
+  font-size: 10px;
+  color: #cbd5e1;
+}
+
+.player-detail {
+  display: flex;
+  gap: clamp(8px, 1.6vw, 16px);
+  align-items: stretch;
+  justify-content: center;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .player-space {
+    padding: 4px 0;
+  }
+
+  .player-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.7);
+    background: rgba(15, 23, 42, 0.92);
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+    color: inherit;
+  }
+
+  .player-detail {
+    display: none;
+  }
+
+  .player-space[data-expanded="true"] .player-detail {
+    display: flex;
+    margin-top: 8px;
+  }
+
+  .player-space[data-expanded="true"] {
+    align-items: flex-start;
+  }
+}
+
 .droppable {
   position: relative;
   pointer-events: auto;
