@@ -40,31 +40,54 @@ body,
   left: 14px;
   bottom: 14px;
   z-index: 20;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .sound-toggle-button {
-  padding: 6px 10px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid rgba(15, 23, 42, 0.6);
   background: rgba(15, 23, 42, 0.9);
   color: #f9fafb;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sound-toggle-button:hover {
   background: rgba(15, 23, 42, 1);
 }
 
+.sound-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .sound-volume-slider {
   padding: 6px 12px;
   accent-color: #f97316;
   width: 110px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.sound-controls.expanded .sound-volume-slider {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .play-topbar {

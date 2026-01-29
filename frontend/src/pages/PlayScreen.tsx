@@ -272,10 +272,11 @@ const PlayScreen: React.FC = () => {
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
   const [rentDoublers, setRentDoublers] = useState<number[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
-    // activeCard state removed with drag/drop
+  // activeCard state removed with drag/drop
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
   const [isSubmittingCharge, setIsSubmittingCharge] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -286,6 +287,7 @@ const PlayScreen: React.FC = () => {
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const bgmWasPlayingRef = useRef(false);
   const bgmResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sliderHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rentChargeKeyRef = useRef<string | null>(null);
 
   const wsUrl = useMemo(
@@ -2101,6 +2103,9 @@ const PlayScreen: React.FC = () => {
     return () => {
       timers.forEach((timer) => clearTimeout(timer));
       timers.clear();
+      if (sliderHideTimeoutRef.current) {
+        clearTimeout(sliderHideTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -2409,32 +2414,66 @@ const PlayScreen: React.FC = () => {
           cardImageForId={(id) => cardAssetMap[id] ?? cardBack}
         />
 
-        <div className="sound-controls">
+        <div
+          className={`sound-controls ${showVolumeSlider ? "expanded" : ""}`}
+          onMouseEnter={() => {
+            if (sliderHideTimeoutRef.current) {
+              clearTimeout(sliderHideTimeoutRef.current);
+              sliderHideTimeoutRef.current = null;
+            }
+            setShowVolumeSlider(true);
+          }}
+          onMouseLeave={() => {
+            if (sliderHideTimeoutRef.current) {
+              clearTimeout(sliderHideTimeoutRef.current);
+            }
+            sliderHideTimeoutRef.current = setTimeout(() => {
+              setShowVolumeSlider(false);
+              sliderHideTimeoutRef.current = null;
+            }, 5000);
+          }}
+        >
           <button
             type="button"
             className="sound-toggle-button"
-            onClick={() => setIsMuted((prev) => !prev)}
-          >
-            {isMuted ? "Unmute" : "Mute"}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            className="sound-volume-slider"
-            value={Math.round(volume * 100)}
-            onChange={(e) => {
-              const next = Number(e.target.value) / 100;
-              setVolume(next);
-              if (next === 0) {
-                setIsMuted(true);
-              } else if (isMuted) {
-                setIsMuted(false);
+            onClick={() => {
+              setIsMuted((prev) => !prev);
+              if (sliderHideTimeoutRef.current) {
+                clearTimeout(sliderHideTimeoutRef.current);
+                sliderHideTimeoutRef.current = null;
               }
+              setShowVolumeSlider(true);
+              sliderHideTimeoutRef.current = setTimeout(() => {
+                setShowVolumeSlider(false);
+                sliderHideTimeoutRef.current = null;
+              }, 5000);
             }}
-            aria-label="Game volume"
-          />
+            aria-label={isMuted ? "Unmute game" : "Mute game"}
+          >
+            <span className="sound-icon" aria-hidden="true">
+              {isMuted ? "🔇" : "🔊"}
+            </span>
+          </button>
+          {showVolumeSlider && (
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              className="sound-volume-slider"
+              value={Math.round(volume * 100)}
+              onChange={(e) => {
+                const next = Number(e.target.value) / 100;
+                setVolume(next);
+                if (next === 0) {
+                  setIsMuted(true);
+                } else if (isMuted) {
+                  setIsMuted(false);
+                }
+              }}
+              aria-label="Game volume"
+            />
+          )}
         </div>
       </div>
 
