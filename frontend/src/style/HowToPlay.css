@@ -145,6 +145,13 @@
   color: #4b5563;
 }
 
+.howto-image {
+  display: block;
+  max-width: 100%;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
 @media (max-width: 900px) {
   .howto-panel {
     grid-template-columns: minmax(0, 1fr);

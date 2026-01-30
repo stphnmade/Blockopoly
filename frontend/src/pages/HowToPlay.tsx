@@ -1,6 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/HowToPlay.css";
+import lobbyJoinImg from "../assets/how-to-play/lobby-join.png";
+import boardLabeledImg from "../assets/how-to-play/board-labeled.png";
+import boardTopbarImg from "../assets/how-to-play/board-topbar.png";
+import handDefaultImg from "../assets/how-to-play/hand-default.png";
+import winnerConditionImg from "../assets/how-to-play/winner-condition.png";
 
 type SectionId =
   | "game-room"
@@ -48,20 +53,21 @@ export const HowToPlay: React.FC = () => {
           <>
             <h2>Game Room</h2>
             <p>
-              Every Blockopoly game starts in a room. The room holds the list of
-              players, the shared game state, and the code you can share with
-              friends so they can join you.
+              Every Blockopoly session happens inside a room. The room keeps
+              track of all players, the shared game state, and the code you use
+              to invite friends.
             </p>
             <h3>Creating a room</h3>
             <p>
-              From the main menu, choose to create a new room. You&apos;ll become
-              the host and get a short room code you can send to other players.
+              From the main menu, enter your name and choose{" "}
+              <strong>Create Room</strong>. You&apos;ll become the host and get a
+              short room code you can send to other players.
             </p>
             <h3>Joining a room</h3>
             <p>
               If a friend has already created a room, enter their code on the
               join screen. Once you join, you&apos;ll see their name and any other
-              players waiting in the lobby.
+              players waiting in the lobby before the game starts.
             </p>
             <h3>Sharing room codes</h3>
             <p>
@@ -70,9 +76,13 @@ export const HowToPlay: React.FC = () => {
               player count supported by the game.
             </p>
             <div className="howto-media-placeholder">
-              {/* Place gameplay screenshots for lobby and room creation here */}
+              <img
+                src={lobbyJoinImg}
+                alt="Main menu and join-room UI showing code and name fields"
+                className="howto-image"
+              />
               <div className="howto-media-label">
-                Lobby &amp; room setup screenshots (coming soon)
+                Example of entering your name and room code to join a game.
               </div>
             </div>
           </>
@@ -82,8 +92,9 @@ export const HowToPlay: React.FC = () => {
           <>
             <h2>The Board</h2>
             <p>
-              The main play screen shows the shared board. Each player has a
-              property collection, a bank, and slots where new cards are played.
+              The main play screen shows a shared board with 2–5 player spaces.
+              Each player has a property collection (estate field), a bank, and
+              a personal hand at the edge closest to them.
             </p>
             <h3>Bank</h3>
             <p>
@@ -93,8 +104,10 @@ export const HowToPlay: React.FC = () => {
             </p>
             <h3>Estate / property collection</h3>
             <p>
-              Property sets are grouped by color. Completing sets increases the
-              rent you can charge with your action cards.
+              The estate field is a 5 × 2 grid of property slots that holds
+              every property you own. Properties are grouped by color, and
+              completed sets are visually marked so you can see rent potential
+              at a glance.
             </p>
             <h3>Property slots</h3>
             <p>
@@ -103,9 +116,19 @@ export const HowToPlay: React.FC = () => {
               hotels for extra power.
             </p>
             <div className="howto-media-placeholder">
-              {/* Place screenshots of the board layout and player mats here */}
+              <img
+                src={boardLabeledImg}
+                alt="Board labeled with bank, property collection, discard pile and hand"
+                className="howto-image"
+              />
+              <img
+                src={boardTopbarImg}
+                alt="Top bar showing room info, whose turn it is, and plays left"
+                className="howto-image"
+              />
               <div className="howto-media-label">
-                Board &amp; player mat screenshots (coming soon)
+                Labeled board showing each player space, the central discard
+                pile, and the status top bar.
               </div>
             </div>
           </>
@@ -115,38 +138,45 @@ export const HowToPlay: React.FC = () => {
           <>
             <h2>The Cards</h2>
             <p>
-              Cards are the core of Blockopoly. Every turn, you decide whether
-              to grow your bank, build out your properties, or play actions that
-              affect other players.
+              Blockopoly uses a 110-card deck inspired by Monopoly Deal. Each
+              turn, you decide whether to grow your bank, build out your
+              properties, or play actions that affect other players.
             </p>
             <h3>Property cards</h3>
             <p>
-              Property cards belong to one or more colors. Matching colors into
-              sets is how you build toward winning. Some cards are wild and can
-              change colors.
+              Property cards belong to one or more colors (for example Green,
+              Dark Blue, Turquoise). Completing a color set increases your rent
+              and counts toward winning. Some properties are wild and can belong
+              to multiple colors.
             </p>
             <h3>Action cards</h3>
             <p>
-              Action cards let you charge rent, steal properties, swap sets, and
-              more. They are played from your hand and usually cost one of your
-              allowed plays for the turn.
+              Action cards let you charge rent, steal or swap properties, and
+              respond to opponents. Examples include Deal Breaker, Sly Deal,
+              Forced Deal, Debt Collector, and It&apos;s My Birthday. These cards
+              are played from your hand and typically cost one of your plays for
+              the turn.
             </p>
             <h3>Wild cards</h3>
             <p>
-              Wild property cards can count as multiple colors. You choose which
-              color they represent when you play or move them, subject to the
-              game&apos;s set rules.
+              Wild property cards can count as two specific colors (like Red &
+              Yellow) or as any color. When you play or reposition them, you
+              choose which color they currently represent, as long as you follow
+              the set rules described on the card.
             </p>
             <h3>Money cards</h3>
             <p>
-              Every card with a Bollar value ({String.fromCharCode(0x20BF)}) can be banked
-              as money instead of being used for its printed effect. Banked
-              money can be used to pay charges against you.
+              Money cards are pure Bollar ({String.fromCharCode(0x20BF)}) value and live in your bank.
+              Many action cards also have a Bollar value in the corner and can
+              be banked instead of played. When you&apos;re charged rent or
+              targeted by actions like Debt Collector or Birthday, you pay using
+              cards from your bank first, then from your properties if needed.
             </p>
             <div className="howto-media-placeholder">
-              {/* Place card close-ups or card type overview images here */}
               <div className="howto-media-label">
-                Card type images &amp; callouts (coming soon)
+                Tip: Check card values before banking or playing an action.
+                Sometimes keeping a high-value card in your bank is safer than
+                using its ability.
               </div>
             </div>
           </>
@@ -157,14 +187,16 @@ export const HowToPlay: React.FC = () => {
             <h2>Your Hand</h2>
             <p>
               Your hand is the set of cards you currently hold. On your turn you
-              can usually play up to a fixed number of cards. Some actions draw
-              extra cards or force you to discard down.
+              can usually play up to a fixed number of cards, then you must end
+              your turn with at most seven cards. Some actions draw extra cards
+              or force you to discard down.
             </p>
             <h3>Ending your turn</h3>
             <p>
               When you are done playing cards, tap the End Turn button near your
-              hand. If you are above the maximum hand size, the game will prompt
-              you to discard.
+              hand. If you are above the maximum hand size (7 cards), the game
+              will automatically open a discard prompt so you can choose which
+              cards to keep.
             </p>
             <h3>Positioning</h3>
             <p>
@@ -179,9 +211,14 @@ export const HowToPlay: React.FC = () => {
               next player begins.
             </p>
             <div className="howto-media-placeholder">
-              {/* Place hand overlay screenshots or short clips here */}
+              <img
+                src={handDefaultImg}
+                alt="Example of a player hand showing cards and the End Turn button"
+                className="howto-image"
+              />
               <div className="howto-media-label">
-                Hand &amp; turn flow media (coming soon)
+                Your hand sits along the bottom of the board with a clear End
+                Turn button and card fan.
               </div>
             </div>
           </>
@@ -198,9 +235,10 @@ export const HowToPlay: React.FC = () => {
             </p>
             <h3>Winning conditions</h3>
             <p>
-              A typical win condition is completing a certain number of full
-              sets in different colors. Some variants may add extra objectives,
-              like holding specific developments.
+              A standard game is won by completing a target number of full
+              property sets in different colors (for example, three complete
+              sets). Houses and hotels can make those sets more valuable but do
+              not usually replace the need for completed sets.
             </p>
             <h3>Winner screen</h3>
             <p>
@@ -209,9 +247,14 @@ export const HowToPlay: React.FC = () => {
               discuss plays and quickly rematch.
             </p>
             <div className="howto-media-placeholder">
-              {/* Place winner screen screenshots or recap videos here */}
+              <img
+                src={winnerConditionImg}
+                alt="Winner screen showing completed sets and winning summary"
+                className="howto-image"
+              />
               <div className="howto-media-label">
-                Winner screen screenshots (coming soon)
+                Example winner screen highlighting the winning player and the
+                sets that secured the game.
               </div>
             </div>
           </>
