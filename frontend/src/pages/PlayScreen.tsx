@@ -289,6 +289,8 @@ const PlayScreen: React.FC = () => {
   const bgmResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sliderHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rentChargeKeyRef = useRef<string | null>(null);
+  const sfxPoolRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const sfxFadeTimersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   const wsUrl = useMemo(
     () =>
@@ -309,28 +311,37 @@ const PlayScreen: React.FC = () => {
     (src: string, baseVolume = 0.85, fadeIn = false) => {
       if (!src || typeof Audio === "undefined" || isMuted) return;
       try {
-        const audio = new Audio(src);
+        let audio = sfxPoolRef.current.get(src) ?? null;
+        if (!audio) {
+          audio = new Audio(src);
+          audio.preload = "auto";
+          sfxPoolRef.current.set(src, audio);
+        }
         const targetVolume = Math.min(1, Math.max(0, baseVolume * volume));
 
         if (fadeIn) {
           audio.volume = 0;
+          const existingTimer = sfxFadeTimersRef.current.get(src);
+          if (existingTimer) {
+            clearInterval(existingTimer);
+            sfxFadeTimersRef.current.delete(src);
+          }
           const steps = 8;
           const durationMs = 220;
           const stepDuration = durationMs / steps;
           const increment = targetVolume / steps;
           let currentStep = 0;
           const fadeTimer = setInterval(() => {
-            if (audio.paused || currentStep >= steps) {
-              audio.volume = targetVolume;
+            if (audio?.paused || currentStep >= steps) {
+              if (audio) audio.volume = targetVolume;
               clearInterval(fadeTimer);
+              sfxFadeTimersRef.current.delete(src);
               return;
             }
             currentStep += 1;
             audio.volume = Math.min(targetVolume, audio.volume + increment);
           }, stepDuration);
-          const clearFade = () => clearInterval(fadeTimer);
-          audio.addEventListener("ended", clearFade);
-          audio.addEventListener("error", clearFade);
+          sfxFadeTimersRef.current.set(src, fadeTimer);
         } else {
           audio.volume = targetVolume;
         }
@@ -357,7 +368,16 @@ const PlayScreen: React.FC = () => {
           bgmWasPlayingRef.current = false;
         }
 
-        void audio.play();
+        try {
+          if (!audio.paused) {
+            audio.currentTime = 0;
+          }
+        } catch {
+          /* ignore seek errors */
+        }
+        void audio.play().catch(() => {
+          /* ignore play errors */
+        });
       } catch {
         /* ignore audio errors */
       }
@@ -829,11 +849,9 @@ const PlayScreen: React.FC = () => {
     () => getPendingInteractions(game?.pendingInteractions),
     [game?.pendingInteractions, getPendingInteractions]
   );
-  const discardableHand = useMemo(
-    () => myHand.filter((card) => card.type !== "PROPERTY" && card.type !== "MONEY"),
-    [myHand]
-  );
-  const discardNeeded = Math.max(0, discardableHand.length - MAX_HAND_SIZE);
+  // Hand-size is enforced on the full hand; any card may be discarded.
+  const discardableHand = useMemo(() => myHand, [myHand]);
+  const discardNeeded = Math.max(0, myHand.length - MAX_HAND_SIZE);
   const canConfirmDiscard = discardNeeded > 0 && discardSelection.length === discardNeeded;
 
   const lobbyOrder = useMemo(
@@ -1726,20 +1744,19 @@ const PlayScreen: React.FC = () => {
 
   const sendEndTurn = useCallback(() => {
     if (!isMyTurn) return;
-    if (discardableHand.length > MAX_HAND_SIZE) {
+    if (myHand.length > MAX_HAND_SIZE) {
       setIsDiscarding(true);
       setMenuCard(null);
       setColorChoices(null);
       return;
     }
     wsSend({ type: "EndTurn" });
-  }, [discardableHand.length, isMyTurn, wsSend]);
+  }, [isMyTurn, myHand.length, wsSend]);
 
   const toggleDiscardSelection = useCallback(
     (cardId: number) => {
       const card = myHand.find((entry) => entry.id === cardId);
-      // Prevent discarding property and money cards; only allow action/rent cards
-      if (!card || card.type === "PROPERTY" || card.type === "MONEY") return;
+      if (!card) return;
       setDiscardSelection((prev) => {
         if (prev.includes(cardId)) {
           return prev.filter((id) => id !== cardId);
@@ -2106,6 +2123,16 @@ const PlayScreen: React.FC = () => {
       if (sliderHideTimeoutRef.current) {
         clearTimeout(sliderHideTimeoutRef.current);
       }
+      sfxFadeTimersRef.current.forEach((timer) => clearInterval(timer));
+      sfxFadeTimersRef.current.clear();
+      sfxPoolRef.current.forEach((audio) => {
+        try {
+          audio.pause();
+        } catch {
+          /* ignore pause errors */
+        }
+      });
+      sfxPoolRef.current.clear();
     };
   }, []);
 
