@@ -35,6 +35,7 @@ const MainMenu: React.FC = () => {
 
   const esRef = useRef<EventSource | null>(null);
   const navigatedRef = useRef(false);
+  const lastActionRef = useRef<"join" | "create" | null>(null);
 
   const isValidName = name.trim().length > 0 && name.trim().length <= 28;
   const isValidCode = /^[A-Za-z0-9]{6}$/.test(codeInput);
@@ -80,7 +81,11 @@ const MainMenu: React.FC = () => {
     es.onerror = () => {
       console.error("[SSE] error");
       es.close();
-      setError("Lost connection to server.");
+      if (lastActionRef.current === "join") {
+        setError("Room not found. Check the code and try again.");
+      } else {
+        setError("Lost connection to server.");
+      }
     };
   };
 
@@ -90,6 +95,7 @@ const MainMenu: React.FC = () => {
       setError("Enter a name and 6-character room code.");
       return;
     }
+    lastActionRef.current = "join";
     const clientId = getClientId();
     const url = `${API}/joinRoom/${codeInput}/${encodeURIComponent(
       name.trim()
@@ -103,6 +109,7 @@ const MainMenu: React.FC = () => {
       setError("Please enter a name.");
       return;
     }
+    lastActionRef.current = "create";
     const clientId = getClientId();
     const url = `${API}/createRoom/${encodeURIComponent(
       name.trim()
