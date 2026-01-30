@@ -13,6 +13,7 @@ import PlayScreen from "./pages/PlayScreen";
 import Lobby from "./pages/Lobby";
 import WinnerScreen from "./pages/WinnerScreen";
 import { AnimatePresence, motion } from "framer-motion";
+import { HowToPlay } from "./pages/HowToPlay";
 
 /* ─── Animated wrapper with correct typing ─── */
 const AnimatedRoute: React.FC<{ children: React.ReactNode }> = ({
@@ -36,7 +37,10 @@ const StartRoute: React.FC = () => {
   const navigate = useNavigate();
   return (
     <AnimatedRoute>
-      <StartScreen onStart={() => navigate("/main")} />
+      <StartScreen
+        onStart={() => navigate("/main")}
+        onLearn={() => navigate("/learn")}
+      />
     </AnimatedRoute>
   );
 };
@@ -48,6 +52,15 @@ function App() {
       <AnimatePresence mode="wait">
         <Routes>
           <Route path="/" element={<StartRoute />} />
+
+          <Route
+            path="/learn"
+            element={
+              <AnimatedRoute>
+                <HowToPlay />
+              </AnimatedRoute>
+            }
+          />
 
           <Route
             path="/main"

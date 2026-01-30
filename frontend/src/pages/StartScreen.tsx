@@ -7,9 +7,10 @@ import "../style/StartScreen.css";
 
 type Props = {
   onStart: () => void; // parent decides where to go
+  onLearn?: () => void;
 };
 
-export const StartScreen: React.FC<Props> = ({ onStart }) => {
+export const StartScreen: React.FC<Props> = ({ onStart, onLearn }) => {
   const handleClick = () => {
     new Audio(clickSound).play();
 
@@ -28,6 +29,13 @@ export const StartScreen: React.FC<Props> = ({ onStart }) => {
       <div className="div">
         <img className="blockopoly-logo" alt="Blockopoly logo" src={logo} />
         <PrimaryButton onClick={handleClick} />
+        <button
+          type="button"
+          className="learn-button"
+          onClick={() => onLearn && onLearn()}
+        >
+          Learn How to Play
+        </button>
       </div>
     </div>
   );

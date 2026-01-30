@@ -50,29 +50,40 @@ body {
 .primary-button,
 .secondary-button {
   position: relative;
-  width: 140px;
+  width: 200px;
   padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 1rem;
   cursor: pointer;
-  color: white;
+  border: 1px solid transparent;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.12);
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 90ms ease;
 }
 
 .primary-button {
-  background-color: #ff7f50;
+  background-color: #fef3c7; /* soft yellow for Join */
+  border-color: #fbbf24;
 }
 
 .primary-button:hover {
-  background-color: #e0673e;
+  background-color: #d1401b;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.16);
+  transform: translateY(-1px);
 }
 
 .secondary-button {
-  background-color: #6c63ff;
+  background-color: #dcfce7; /* soft green for Create */
+  border-color: #86efac;
+  color: #166534;
 }
 
 .secondary-button:hover {
-  background-color: #5a52d4;
+  background-color: #bbf7d0;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.16);
+  transform: translateY(-1px);
 }
 
 .error-message {

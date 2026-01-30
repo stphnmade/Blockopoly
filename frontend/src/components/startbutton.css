@@ -7,20 +7,21 @@
   padding: 1rem 2rem;
   font-size: 1.5rem;
   font-weight: bold;
-  color: white;
-  background: linear-gradient(135deg, #ff8800, #ff2e63);
-  border: none;
-  border-radius: 12px;
+  color: #000000;
+  background: #bfdbfe;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.18);
   transition: all 0.3s ease-in-out;
   position: relative;
   overflow: hidden;
 }
 
 .primary-button:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(255, 136, 0, 0.6);
+  transform: translateY(-1px);
+  background: #bfdbfe;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.22);
 }
 
 .primary-button:active {
