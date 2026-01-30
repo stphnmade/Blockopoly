@@ -144,7 +144,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
             >
               <DroppableBind zoneId="p1-bank" />
               <div className="bank-summary" aria-hidden>
-                <div className="bank-total">{p1Bank?.total ?? 0}M</div>
+                <div className="bank-total">₿{p1Bank?.total ?? 0}</div>
                 <div className="bank-count">{p1Bank?.count ?? 0} cards</div>
               </div>
             </div>
@@ -188,7 +188,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
             >
               <DroppableBind zoneId="p2-bank" />
               <div className="bank-summary" aria-hidden>
-                <div className="bank-total">{p2Bank?.total ?? 0}M</div>
+                <div className="bank-total">₿{p2Bank?.total ?? 0}</div>
                 <div className="bank-count">{p2Bank?.count ?? 0} cards</div>
               </div>
             </div>
@@ -218,7 +218,7 @@ const Playmat2: React.FC<PlaymatProps> = ({
               <div>
                 <div className="bank-modal-title">Your Bank</div>
                 <div className="bank-modal-subtitle">
-                  Total {myBankTotal}M in {myBankCount} cards.
+                  Total ₿{myBankTotal} in {myBankCount} cards.
                 </div>
               </div>
               <button type="button" className="bank-close" onClick={() => setBankOpen(false)}>

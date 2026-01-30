@@ -107,7 +107,7 @@ export default function ChargeModal({
         </div>
         <div className="charge-body">
           <div className="charge-section">
-            <div className="charge-section-title">Bank (total {rentBankTotal}M)</div>
+            <div className="charge-section-title">Bank (total ₿{rentBankTotal})</div>
             {myBankCards.length === 0 ? (
               <div className="charge-empty">No money in bank.</div>
             ) : (
@@ -124,7 +124,7 @@ export default function ChargeModal({
                       aria-pressed={selected}
                     >
                       <img src={assetForCard(card)} alt="Bank card" draggable={false} />
-                      <span className="charge-value">{getCardValue(card)}M</span>
+                      <span className="charge-value">₿{getCardValue(card)}</span>
                     </button>
                   );
                 })}
@@ -133,7 +133,7 @@ export default function ChargeModal({
           </div>
           <div className="charge-section">
             <div className="charge-section-title">
-              Properties (total {rentPropertyTotal}M)
+              Properties (total ₿{rentPropertyTotal})
             </div>
             {chargePropertyCards.length === 0 ? (
               <div className="charge-empty">
@@ -155,7 +155,7 @@ export default function ChargeModal({
                       aria-pressed={selected}
                     >
                       <img src={assetForCard(card)} alt="Property card" draggable={false} />
-                      <span className="charge-value">{getCardValue(card)}M</span>
+                      <span className="charge-value">₿{getCardValue(card)}</span>
                     </button>
                   );
                 })}
@@ -164,8 +164,8 @@ export default function ChargeModal({
           </div>
         </div>
         <div className="charge-summary">
-          <div>Selected: {rentSelectedTotal}M</div>
-          <div>Remaining: {rentRemaining}M</div>
+          <div>Selected: ₿{rentSelectedTotal}</div>
+          <div>Remaining: ₿{rentRemaining}</div>
         </div>
         {rentMustPayAll && <div className="charge-note">{mustPayAllLabel}</div>}
         <div className="charge-actions">

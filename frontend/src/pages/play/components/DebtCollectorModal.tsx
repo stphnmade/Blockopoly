@@ -61,7 +61,7 @@ export default function DebtCollectorModal({
             <div className="rent-title" id="debt-title">
               Debt Collector
             </div>
-            <div className="rent-subtitle">Choose a target to collect {amount}M.</div>
+            <div className="rent-subtitle">Choose a target to collect ₿{amount}.</div>
           </div>
           <div>
             <div className="rent-card-preview">
@@ -110,7 +110,7 @@ export default function DebtCollectorModal({
             onClick={onConfirm}
             disabled={!canConfirm}
           >
-            Collect {amount}M
+            Collect ₿{amount}
           </button>
         </div>
       </div>

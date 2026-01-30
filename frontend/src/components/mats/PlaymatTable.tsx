@@ -108,11 +108,11 @@ export default function PlaymatTable({
             onClick={() => player.isMe && setOpenBank(true)}
             disabled={!player.isMe}
             style={{ ["--stack-depth" as string]: bankDepth }}
-            aria-label={`${player.name} bank, ${player.bankTotal}M in ${player.bankCount} cards`}
+            aria-label={`${player.name} bank, ₿${player.bankTotal} in ${player.bankCount} cards`}
           >
             <span className="bank-stack" aria-hidden />
             <span className="bank-stats">
-              <span className="bank-total">{player.bankTotal}M</span>
+              <span className="bank-total">₿{player.bankTotal}</span>
               <span className="bank-count">{player.bankCount} cards</span>
             </span>
           </button>
@@ -169,7 +169,7 @@ export default function PlaymatTable({
               <div>
                 <div className="bank-modal-title">Your Bank</div>
                 <div className="bank-modal-subtitle">
-                  Total {me.bankTotal}M in {me.bankCount} cards.
+                  Total ₿{me.bankTotal} in {me.bankCount} cards.
                 </div>
               </div>
               <button type="button" className="bank-close" onClick={() => setOpenBank(false)}>
@@ -183,7 +183,7 @@ export default function PlaymatTable({
                 me.bankCards.map((card, idx) => (
                   <div key={`${card.id}-${idx}`} className="bank-card">
                     <img src={assetForCard({ id: card.id })} alt="Money card" draggable={false} />
-                    <span className="bank-card-value">{card.value ?? 0}M</span>
+                    <span className="bank-card-value">₿{card.value ?? 0}</span>
                   </div>
                 ))
               )}

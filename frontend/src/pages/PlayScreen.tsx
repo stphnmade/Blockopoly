@@ -531,8 +531,8 @@ const PlayScreen: React.FC = () => {
           const requester = payload.requester as string | undefined;
           const isSelf = requester === myPID;
           const message = isSelf
-            ? `You played It's My Birthday! Everyone pays ${BIRTHDAY_PAYMENT_AMOUNT}M.`
-            : `${displayName(requester)} played It's My Birthday! Everyone pays ${BIRTHDAY_PAYMENT_AMOUNT}M.`;
+            ? `You played It's My Birthday! Everyone pays ₿${BIRTHDAY_PAYMENT_AMOUNT}.`
+            : `${displayName(requester)} played It's My Birthday! Everyone pays ₿${BIRTHDAY_PAYMENT_AMOUNT}.`;
           pushToast(message, "info");
           if (requester && requester !== myPID) {
             setRentCharge({
@@ -551,8 +551,8 @@ const PlayScreen: React.FC = () => {
           const targetLabel = target ? displayName(target) : "an opponent";
           const isSelf = requester === myPID;
           const message = isSelf
-            ? `You played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`
-            : `${displayName(requester)} played Debt Collector on ${targetLabel} for ${DEBT_COLLECTOR_PAYMENT_AMOUNT}M.`;
+            ? `You played Debt Collector on ${targetLabel} for ₿${DEBT_COLLECTOR_PAYMENT_AMOUNT}.`
+            : `${displayName(requester)} played Debt Collector on ${targetLabel} for ₿${DEBT_COLLECTOR_PAYMENT_AMOUNT}.`;
           pushToast(message, "info");
           playActionSound("DEBT_COLLECTOR");
           if (target && target === myPID) {
@@ -2127,14 +2127,14 @@ const PlayScreen: React.FC = () => {
       : 0;
   const chargePayLabel =
     overpayAmount > 0
-      ? `${baseChargePayLabel} (Overpaying ${overpayAmount}M)`
+      ? `${baseChargePayLabel} (Overpaying ₿${overpayAmount})`
       : baseChargePayLabel;
   const chargeSubtitle = rentCharge
     ? rentCharge.kind === "BIRTHDAY"
-      ? `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M for their birthday.`
+      ? `${displayName(rentCharge.requesterId)} requests ₿${rentAmountDue} for their birthday.`
       : rentCharge.kind === "DEBT_COLLECTOR"
-        ? `${displayName(rentCharge.requesterId)} demands ${rentAmountDue}M in debt.`
-      : `${displayName(rentCharge.requesterId)} requests ${rentAmountDue}M${
+        ? `${displayName(rentCharge.requesterId)} demands ₿${rentAmountDue} in debt.`
+      : `${displayName(rentCharge.requesterId)} requests ₿${rentAmountDue}${
           rentCharge.color ? ` for ${formatColor(rentCharge.color)} rent.` : " in rent."
         }`
     : "";
@@ -2786,7 +2786,7 @@ const PlayScreen: React.FC = () => {
                 disabled={!isMyTurn || playsLeft <= 0}
                 onClick={bankSelected}
               >
-                Bank ({getCardValue(menuCard)}M)
+                Bank (₿{getCardValue(menuCard)})
               </button>
             )}
             {menuCard.type === "PROPERTY" && !colorChoices && (
@@ -2832,7 +2832,7 @@ const PlayScreen: React.FC = () => {
                   disabled={!isMyTurn || playsLeft <= 0}
                   onClick={playBirthdaySelected}
                 >
-                  It's My Birthday (+2M each)
+                  It's My Birthday (+₿2 each)
                 </button>
               )}
             {menuCard.type === "GENERAL_ACTION" &&
@@ -2844,7 +2844,7 @@ const PlayScreen: React.FC = () => {
                   disabled={!isMyTurn || playsLeft <= 0 || !hasDebtTargets}
                   onClick={() => openDebtCollectorMenu(menuCard)}
                 >
-                  Debt Collector ({DEBT_COLLECTOR_PAYMENT_AMOUNT}M)
+                  Debt Collector (₿{DEBT_COLLECTOR_PAYMENT_AMOUNT})
                 </button>
               )}
             {menuCard.type === "GENERAL_ACTION" &&
