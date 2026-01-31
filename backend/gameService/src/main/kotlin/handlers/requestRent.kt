@@ -40,10 +40,9 @@ suspend fun requestRent(room: DealGame, game: MutableStateFlow<GameState>, playe
             rentRequest.target == playerId -> "Invalid rent: you cannot target yourself."
             rentRequest.target != null && current.playerState[rentRequest.target] == null ->
                 "Invalid rent: target player not found."
+            // Two-color RENT must always hit all opponents; WILD_RENT may be single-target.
             rentCard.actionType == ActionType.RENT && rentRequest.target != null ->
                 "Invalid rent: this rent card must target all opponents."
-            rentCard.actionType == ActionType.WILD_RENT && rentRequest.target == null ->
-                "Invalid rent: this Wild Rent card must target a single opponent."
             playerState.getPropertySet(rentRequest.rentingSetId) == null ->
                 "Invalid rent: you do not own the selected property set."
             else -> null

@@ -7,6 +7,7 @@ import com.gameservice.models.Card
 import com.gameservice.models.GameState
 import com.gameservice.models.JustSayNo
 import com.gameservice.models.JustSayNoMessage
+import com.gameservice.models.DevelopmentRequestMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.updateAndGet
 
@@ -20,6 +21,7 @@ suspend fun justSayNo(room: DealGame, game: MutableStateFlow<GameState>, playerI
                 current.pendingInteractions.getTargetedInteraction(playerId)
             } ?: return current
         if (interaction.awaitingResponseFrom != playerId || interaction.resolved) return current
+        if (interaction.action is DevelopmentRequestMessage) return current
         if (justSayNo.ids.isEmpty()) return current
         val jsnCards = justSayNo.ids.map { cardMapping[it] ?: return current }
         if (jsnCards.any {

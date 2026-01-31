@@ -23,11 +23,22 @@ suspend fun slyDeal(room: DealGame, gameState: MutableStateFlow<GameState>, play
         val playerState = current.playerState[playerId] ?: return current
         val card = cardMapping[action.id] ?: return current
         if (card !is Card.Action || card.actionType != ActionType.SLY_DEAL || !current.isCardInHand(playerId, card) || current.cardsLeftToPlay <= 0) return current
-        val opponentsHaveEligible = current.playerState
-            .filterKeys { it != playerId }
-            .values
-            .any { hasEligibleNonCompleteProperties(it) }
-        if (!opponentsHaveEligible) {
+
+        // Build the full set of eligible target cards:
+        // any property card in an incomplete set owned by an opponent.
+        val eligibleTargetsByCardId = mutableMapOf<Int, String>()
+        current.playerState.forEach { (pid, state) ->
+            if (pid == playerId) return@forEach
+            state.propertyCollection.collection.values.forEach { set ->
+                if (!set.isComplete && set.properties.isNotEmpty()) {
+                    set.properties.forEach { prop ->
+                        eligibleTargetsByCardId[prop.id] = pid
+                    }
+                }
+            }
+        }
+
+        if (eligibleTargetsByCardId.isEmpty()) {
             return consumeInvalidAction(
                 room,
                 current,
@@ -37,9 +48,37 @@ suspend fun slyDeal(room: DealGame, gameState: MutableStateFlow<GameState>, play
                 "No eligible properties to steal (cannot steal from completed sets)."
             )
         }
-        val targetCard = cardMapping[action.targetCard] ?: return current
-        if (targetCard !is Card.Property) return current
-        val targetPlayer = playerToStealCardFrom(playerId, targetCard, current.playerState) ?: return current
+
+        val targetCard = cardMapping[action.targetCard]
+            ?: return consumeInvalidAction(
+                room,
+                current,
+                playerState,
+                playerId,
+                card,
+                "Invalid Sly Deal: target property not found."
+            )
+        if (targetCard !is Card.Property) {
+            return consumeInvalidAction(
+                room,
+                current,
+                playerState,
+                playerId,
+                card,
+                "Invalid Sly Deal: target must be a property card."
+            )
+        }
+
+        val targetPlayer = eligibleTargetsByCardId[targetCard.id]
+            ?: return consumeInvalidAction(
+                room,
+                current,
+                playerState,
+                playerId,
+                card,
+                "Invalid Sly Deal: you can only steal from incomplete sets."
+            )
+
         val slyDealMessage = SlyDealMessage(playerId, targetPlayer, action.targetCard, action.colorToReceiveAs)
         current.pendingInteractions.add(
             PendingInteraction(

@@ -6,6 +6,7 @@ type Props = {
   rentCard: ServerCard | null;
   rentColorOptions: RentColorOption[];
   rentColor: string | null;
+  isWildRentCard: boolean;
   rentChargeAllEffective: boolean;
   rentRequiresAll: boolean;
   hasRentTargets: boolean;
@@ -36,6 +37,7 @@ export default function RentModal({
   rentCard,
   rentColorOptions,
   rentColor,
+  isWildRentCard,
   rentChargeAllEffective,
   rentRequiresAll,
   hasRentTargets,
@@ -137,42 +139,48 @@ export default function RentModal({
           </div>
           <div className="rent-section">
             <div className="rent-section-title">Targets</div>
-            <div className="rent-options">
-              <button
-                type="button"
-                className={`rent-option ${rentChargeAllEffective ? "selected" : ""}`}
-                onClick={onSelectAllTargets}
-                disabled={!hasRentTargets}
-              >
-                All opponents
-              </button>
-              <button
-                type="button"
-                className={`rent-option ${!rentChargeAllEffective ? "selected" : ""}`}
-                onClick={onSelectSingleTargets}
-                disabled={!hasRentTargets || rentRequiresAll}
-              >
-                Single opponent
-              </button>
-            </div>
-            {!rentChargeAllEffective && !rentRequiresAll && (
-              <div className="rent-options">
-                {rentTargets.map((pid) => {
-                  const selected = rentTarget === pid;
-                  return (
+            {rentRequiresAll ? (
+              <div className="rent-auto">This rent will charge all opponents.</div>
+            ) : (
+              <>
+                {!isWildRentCard && (
+                  <div className="rent-options">
                     <button
-                      key={pid}
                       type="button"
-                      className={`rent-option ${selected ? "selected" : ""}`}
-                      onClick={() => onSelectTarget(pid)}
+                      className={`rent-option ${rentChargeAllEffective ? "selected" : ""}`}
+                      onClick={onSelectAllTargets}
+                      disabled={!hasRentTargets}
                     >
-                      {displayName(pid)}
+                      All opponents
                     </button>
-                  );
-                })}
-              </div>
+                    <button
+                      type="button"
+                      className={`rent-option ${!rentChargeAllEffective ? "selected" : ""}`}
+                      onClick={onSelectSingleTargets}
+                      disabled={!hasRentTargets}
+                    >
+                      Single opponent
+                    </button>
+                  </div>
+                )}
+                <div className="rent-options">
+                  {rentTargets.map((pid) => {
+                    const selected = rentTarget === pid;
+                    return (
+                      <button
+                        key={pid}
+                        type="button"
+                        className={`rent-option ${selected ? "selected" : ""}`}
+                        onClick={() => onSelectTarget(pid)}
+                      >
+                        {displayName(pid)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
-            {!rentChargeAllEffective && rentTargets.length === 0 && (
+            {!rentRequiresAll && rentTargets.length === 0 && (
               <div className="rent-empty">No opponents available.</div>
             )}
           </div>

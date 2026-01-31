@@ -262,6 +262,26 @@ body,
   align-items: center;
 }
 
+.card-menu-header {
+  justify-content: space-between;
+}
+
+.card-inspect-icon {
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-inspect-icon:hover {
+  background: rgba(148, 163, 184, 0.35);
+}
+
 .card-menu-row button {
   padding: 8px 16px;
   border-radius: 8px;

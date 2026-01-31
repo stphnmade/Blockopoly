@@ -7,7 +7,6 @@ type Props = {
   jsnCount: number;
   displayName: (pid?: string | null) => string;
   onAllow: () => void;
-  onJsn: () => void;
 };
 
 export default function DevelopmentJsnModal({
@@ -17,7 +16,6 @@ export default function DevelopmentJsnModal({
   jsnCount,
   displayName,
   onAllow,
-  onJsn,
 }: Props) {
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -65,14 +63,6 @@ export default function DevelopmentJsnModal({
           </button>
           <button type="button" className="jsn-secondary" onClick={onAllow}>
             Allow
-          </button>
-          <button
-            type="button"
-            className="jsn-primary"
-            onClick={onJsn}
-            disabled={jsnCount === 0}
-          >
-            Just Say No ({jsnCount})
           </button>
         </div>
       </div>

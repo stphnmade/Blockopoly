@@ -65,7 +65,11 @@ data class Birthday(val id: Int) : GameAction
 
 @Serializable
 @SerialName("SlyDeal")
-data class SlyDeal(val id: Int, val targetCard: Int, val colorToReceiveAs: Color?) : GameAction
+data class SlyDeal(
+    val id: Int,
+    val targetCard: Int,
+    val colorToReceiveAs: Color? = null
+) : GameAction
 
 @Serializable
 @SerialName("AcceptDeal")
@@ -73,7 +77,12 @@ data class AcceptDeal(val receiveAsColor: Color?) : GameAction
 
 @Serializable
 @SerialName("ForcedDeal")
-data class ForcedDeal(val id: Int, val targetCard: Int, val cardToGive: Int, val colorToReceiveAs: Color?) : GameAction
+data class ForcedDeal(
+    val id: Int,
+    val targetCard: Int,
+    val cardToGive: Int,
+    val colorToReceiveAs: Color? = null
+) : GameAction
 
 @Serializable
 @SerialName("Dealbreaker")

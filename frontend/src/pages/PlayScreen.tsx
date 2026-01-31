@@ -13,6 +13,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { TbZoomInArea } from "react-icons/tb";
 import {
   PLAYERS_KEY,
   PLAYER_ID_KEY,
@@ -851,6 +852,73 @@ const PlayScreen: React.FC = () => {
     [game?.pendingInteractions, getPendingInteractions]
   );
   const hasPendingInteractions = pendingInteractions.length > 0;
+
+  const pendingBannerText = useMemo(() => {
+    if (!hasPendingInteractions) return "";
+    const first = pendingInteractions[0] as any;
+    const action = first?.action ?? {};
+    const awaiting = (first?.awaitingResponseFrom as string | undefined) ?? null;
+    const who = awaiting ? displayName(awaiting) : null;
+    switch (action.type) {
+      case "RENT_REQUEST": {
+        const amount = action.amount ?? 0;
+        if (who && awaiting === myPID) {
+          return `You must resolve a rent charge of ₿${amount}.`;
+        }
+        if (who) {
+          return `Waiting for ${who} to resolve a rent charge of ₿${amount}.`;
+        }
+        return "Resolving rent requests with opponents…";
+      }
+      case "BIRTHDAY": {
+        if (who && awaiting === myPID) {
+          return "You must pay a birthday charge.";
+        }
+        if (who) {
+          return `Waiting for ${who} to pay a birthday charge.`;
+        }
+        return "Resolving birthday payments…";
+      }
+      case "DEBT_COLLECTOR": {
+        if (who && awaiting === myPID) {
+          return "You must resolve a debt collector charge.";
+        }
+        if (who) {
+          return `Waiting for ${who} to resolve a debt collector charge.`;
+        }
+        return "Resolving debt collector payments…";
+      }
+      case "SLY_DEAL": {
+        if (who && awaiting === myPID) {
+          return "You must respond to a Sly Deal.";
+        }
+        if (who) {
+          return `Waiting for ${who} to respond to a Sly Deal.`;
+        }
+        return "Resolving Sly Deal interaction…";
+      }
+      case "FORCED_DEAL": {
+        if (who && awaiting === myPID) {
+          return "You must respond to a Forced Deal.";
+        }
+        if (who) {
+          return `Waiting for ${who} to respond to a Forced Deal.`;
+        }
+        return "Resolving Forced Deal interaction…";
+      }
+      case "DEALBREAKER": {
+        if (who && awaiting === myPID) {
+          return "You must respond to a Deal Breaker.";
+        }
+        if (who) {
+          return `Waiting for ${who} to respond to a Deal Breaker.`;
+        }
+        return "Resolving Deal Breaker interaction…";
+      }
+      default:
+        return "Resolving pending interactions…";
+    }
+  }, [displayName, hasPendingInteractions, myPID, pendingInteractions]);
   // Hand-size is enforced on the full hand; any card may be discarded.
   const discardableHand = useMemo(() => myHand, [myHand]);
   const discardNeeded = Math.max(0, myHand.length - MAX_HAND_SIZE);
@@ -1128,10 +1196,8 @@ const PlayScreen: React.FC = () => {
   }, [isRainbowCard, rentCard, rentableSetMap]);
 
   const isWildRentCard = useMemo(() => {
-    if (!rentCard) return false;
-    if (rentCard.actionType === "WILD_RENT") return true;
-    return isRainbowCard(rentCard.colors);
-  }, [isRainbowCard, rentCard]);
+    return rentCard?.actionType === "WILD_RENT" ?? false;
+  }, [rentCard]);
 
   const autoRentColor = rentColorOptions.length === 1 ? rentColorOptions[0].color : null;
   const autoRentSetId =
@@ -1139,7 +1205,8 @@ const PlayScreen: React.FC = () => {
   const effectiveRentColor = rentColor ?? autoRentColor;
   const effectiveRentSetId = rentSetId ?? autoRentSetId;
 
-  const rentRequiresAll = !isWildRentCard;
+  // Two-color RENT must hit all opponents; WILD_RENT is single-target only in UI.
+  const rentRequiresAll = rentCard?.actionType === "RENT";
   const rentChargeAllEffective = rentRequiresAll ? true : rentChargeAll;
 
   const canConfirmRent =
@@ -1410,7 +1477,7 @@ const PlayScreen: React.FC = () => {
     setRentCard(card);
     setRentColor(null);
     setRentSetId(null);
-    setRentChargeAll(true);
+    setRentChargeAll(card.actionType === "RENT");
     setRentTarget(null);
     setRentDoublers([]);
   }, [isDiscarding, isMyTurn, isPositioning, playsLeft]);
@@ -2509,10 +2576,8 @@ const PlayScreen: React.FC = () => {
           )}
         </div>
 
-        {hasPendingInteractions && (
-          <div className="rent-notice">
-            Resolving pending interactions (rent, deals, or charges)...
-          </div>
+        {hasPendingInteractions && pendingBannerText && (
+          <div className="rent-notice">{pendingBannerText}</div>
         )}
       </div>
 
@@ -2602,6 +2667,7 @@ const PlayScreen: React.FC = () => {
         rentCard={rentCard}
         rentColorOptions={rentColorOptions}
         rentColor={rentColor}
+        isWildRentCard={isWildRentCard}
         rentChargeAllEffective={rentChargeAllEffective}
         rentRequiresAll={rentRequiresAll}
         hasRentTargets={hasRentTargets}
@@ -2688,7 +2754,6 @@ const PlayScreen: React.FC = () => {
         jsnCount={jsnCards.length}
         displayName={displayName}
         onAllow={() => acceptJustSayNo(devRespondingTo)}
-        onJsn={() => sendJustSayNo(devRespondingTo)}
       />
 
       <SlyDealModal
@@ -2834,21 +2899,20 @@ const PlayScreen: React.FC = () => {
       {/* Inline property color picker / bank action */}
       {menuCard && (
         <div className="card-menu bg-gray-900 border border-gray-700 shadow-2xl">
-          <div className="card-menu-row">
+          <div className="card-menu-row card-menu-header">
             <span className="text-white font-semibold text-lg">
               Selected: #{menuCard.id} {menuCard.type}
             </span>
+            <button
+              type="button"
+              className="card-inspect-icon"
+              onClick={() => menuCard && openInspectCard(menuCard)}
+              title="Inspect card"
+            >
+              <TbZoomInArea size={18} />
+            </button>
           </div>
           <div className="card-menu-row">
-            <button
-              className="bg-slate-700 hover:bg-slate-800 disabled:bg-gray-600 
-                           text-white font-medium px-4 py-2 rounded-lg 
-                           transition-colors duration-200 shadow-md"
-              onClick={() => menuCard && openInspectCard(menuCard)}
-              type="button"
-            >
-              Inspect
-            </button>
             {(menuCard.type === "MONEY" ||
               menuCard.type === "GENERAL_ACTION" ||
               menuCard.type === "RENT_ACTION") && (
