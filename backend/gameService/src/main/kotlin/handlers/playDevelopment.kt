@@ -23,6 +23,9 @@ suspend fun playDevelopment(room: DealGame, game: MutableStateFlow<GameState>, p
             !current.isCardInHand(playerId, card)) return current
         val targetSet = playerState.getPropertySet(action.propertySetId)
         val invalidReason = when {
+            targetSet?.color == com.gameservice.models.Color.UTILITY ||
+                targetSet?.color == com.gameservice.models.Color.RAILROAD ->
+                "You cannot place a House or Hotel on Utilities or Railroads."
             card.actionType == com.gameservice.models.ActionType.HOUSE &&
                 (targetSet == null || !targetSet.isComplete) ->
                 "You need a completed set to place a House."

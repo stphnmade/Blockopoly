@@ -10,5 +10,4 @@ fun Application.module() {
     configureHTTP()
     configureAdministration()
     configureRouting()
-    configureGameGui()
 }

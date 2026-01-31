@@ -168,7 +168,7 @@ const DEBT_COLLECTOR_PAYMENT_AMOUNT = 5;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
 
 /** Click-only hand card (drag removed) */
-const DraggableCard: React.FC<{
+  const DraggableCard: React.FC<{
   card: ServerCard;
   canDrag: boolean; // kept prop name for compatibility
   onClick: () => void;
@@ -231,6 +231,7 @@ const PlayScreen: React.FC = () => {
   const [handExpanded, setHandExpanded] = useState(true);
   const [wsReady, setWsReady] = useState(false);
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
+  const [inspectCard, setInspectCard] = useState<ServerCard | null>(null);
   const [colorChoices, setColorChoices] = useState<string[] | null>(null);
   const [isPositioning, setIsPositioning] = useState(false);
   const [positioningCard, setPositioningCard] = useState<PositioningCard | null>(null);
@@ -849,6 +850,7 @@ const PlayScreen: React.FC = () => {
     () => getPendingInteractions(game?.pendingInteractions),
     [game?.pendingInteractions, getPendingInteractions]
   );
+  const hasPendingInteractions = pendingInteractions.length > 0;
   // Hand-size is enforced on the full hand; any card may be discarded.
   const discardableHand = useMemo(() => myHand, [myHand]);
   const discardNeeded = Math.max(0, myHand.length - MAX_HAND_SIZE);
@@ -1285,6 +1287,10 @@ const PlayScreen: React.FC = () => {
     }
     setMenuCard(null);
     setColorChoices(null);
+  };
+
+  const openInspectCard = (card: ServerCard) => {
+    setInspectCard(card);
   };
 
   const passGoSelected = () => {
@@ -2502,6 +2508,12 @@ const PlayScreen: React.FC = () => {
             />
           )}
         </div>
+
+        {hasPendingInteractions && (
+          <div className="rent-notice">
+            Resolving pending interactions (rent, deals, or charges)...
+          </div>
+        )}
       </div>
 
       {toasts.length > 0 && (
@@ -2780,6 +2792,31 @@ const PlayScreen: React.FC = () => {
         onPlayJsn={() => sendJustSayNo(dealInteraction?.toPlayer ?? "")}
       />
 
+      {inspectCard && (
+        <div className="inspect-overlay" role="dialog" aria-modal="true">
+          <div className="inspect-modal">
+            <div className="inspect-header">
+              <div className="inspect-title">Card details</div>
+              <button
+                type="button"
+                className="inspect-close"
+                onClick={() => setInspectCard(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="inspect-body">
+              <img
+                src={assetForCard(inspectCard)}
+                alt={inspectCard.type}
+                className="inspect-image"
+                draggable={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <DiscardModal
         isOpen={isDiscarding}
         maxHandSize={MAX_HAND_SIZE}
@@ -2803,6 +2840,15 @@ const PlayScreen: React.FC = () => {
             </span>
           </div>
           <div className="card-menu-row">
+            <button
+              className="bg-slate-700 hover:bg-slate-800 disabled:bg-gray-600 
+                           text-white font-medium px-4 py-2 rounded-lg 
+                           transition-colors duration-200 shadow-md"
+              onClick={() => menuCard && openInspectCard(menuCard)}
+              type="button"
+            >
+              Inspect
+            </button>
             {(menuCard.type === "MONEY" ||
               menuCard.type === "GENERAL_ACTION" ||
               menuCard.type === "RENT_ACTION") && (
