@@ -1195,8 +1195,8 @@ const PlayScreen: React.FC = () => {
     }));
   }, [isRainbowCard, rentCard, rentableSetMap]);
 
-  const isWildRentCard = useMemo(() => {
-    return rentCard?.actionType === "WILD_RENT" ?? false;
+  const isWildRentCard = useMemo<boolean>(() => {
+    return rentCard?.actionType === "WILD_RENT";
   }, [rentCard]);
 
   const autoRentColor = rentColorOptions.length === 1 ? rentColorOptions[0].color : null;
