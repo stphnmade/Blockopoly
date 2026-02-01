@@ -167,6 +167,7 @@ const ALL_COLOR_COUNT = 10;
 const BIRTHDAY_PAYMENT_AMOUNT = 2;
 const DEBT_COLLECTOR_PAYMENT_AMOUNT = 5;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
+const WS_DEBUG = import.meta.env.VITE_DEBUG_WS === "true";
 const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
 
 /** Click-only hand card (drag removed) */
@@ -529,17 +530,17 @@ const PlayScreen: React.FC = () => {
       return;
     }
     const ws = new WebSocket(wsUrl);
-    console.info("[WS] attempting connect", { wsUrl, roomId, myPID });
+    if (WS_DEBUG) console.info("[WS] attempting connect", { wsUrl, roomId, myPID });
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.info("[WS] connected", { wsUrl });
+      if (WS_DEBUG) console.info("[WS] connected", { wsUrl });
       setWsReady(true);
       backoffRef.current = 500;
     };
 
     ws.onmessage = (evt) => {
-      console.debug("[WS] raw message", evt.data);
+      if (WS_DEBUG) console.debug("[WS] raw message", evt.data);
       try {
         const msg: StateEnvelope = JSON.parse(evt.data);
         if ((msg as any).type === "STATE" && (msg as any).gameState) {
@@ -841,14 +842,19 @@ const PlayScreen: React.FC = () => {
     };
 
     ws.onerror = (err) => {
-      console.error("[WS] error event", err);
+      if (WS_DEBUG) console.error("[WS] error event", err);
     };
 
     ws.onclose = (ev) => {
       if (!shouldReconnectRef.current) {
         return;
       }
-      console.warn("[WS] closed", { code: ev?.code, reason: ev?.reason, wasClean: ev?.wasClean });
+      if (WS_DEBUG)
+        console.warn("[WS] closed", {
+          code: ev?.code,
+          reason: ev?.reason,
+          wasClean: ev?.wasClean,
+        });
       setWsReady(false);
       const delay = Math.min(backoffRef.current, 6000);
       backoffRef.current = Math.min(delay * 2, 6000);
