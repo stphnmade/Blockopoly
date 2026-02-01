@@ -2,17 +2,21 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import "../style/HowToPlay.css";
 import lobbyJoinImg from "../assets/how-to-play/lobby-join.png";
+import WinnerScreen from "../assets/how-to-play/winner-screen.png";
 import boardLabeledImg from "../assets/how-to-play/board-labeled.png";
 import boardTopbarImg from "../assets/how-to-play/board-topbar.png";
 import handDefaultImg from "../assets/how-to-play/hand-default.png";
 import winnerConditionImg from "../assets/how-to-play/winner-condition.png";
+import actioncardsImg from "../assets/how-to-play/cards-action.png";
+import propertycardsImg from "../assets/how-to-play/cards-properties.png";
+import moneycardsImg from "../assets/how-to-play/cards-money.png";
+import wildcardsImg from "../assets/how-to-play/cards-wildprops.png";
+import lobbyjoinImg from "../assets/how-to-play/lobby-create.png";
+import lobbyshareImg from "../assets/how-to-play/lobby-share.png";
+import bankinfo from "../assets/how-to-play/board-bank.png";
+import propslot from "../assets/how-to-play/board-propslots.png";
 
-type SectionId =
-  | "game-room"
-  | "board"
-  | "cards"
-  | "hand"
-  | "win";
+type SectionId = "game-room" | "board" | "cards" | "hand" | "win";
 
 const sections: { id: SectionId; title: string; items: string[] }[] = [
   {
@@ -43,7 +47,8 @@ const sections: { id: SectionId; title: string; items: string[] }[] = [
 ];
 
 export const HowToPlay: React.FC = () => {
-  const [activeSection, setActiveSection] = React.useState<SectionId>("game-room");
+  const [activeSection, setActiveSection] =
+    React.useState<SectionId>("game-room");
   const navigate = useNavigate();
 
   const renderContent = () => {
@@ -60,20 +65,24 @@ export const HowToPlay: React.FC = () => {
             <h3>Creating a room</h3>
             <p>
               From the main menu, enter your name and choose{" "}
-              <strong>Create Room</strong>. You&apos;ll become the host and get a
-              short room code you can send to other players.
+              <strong>Create Room</strong>. You&apos;ll become the host and get
+              a short room code you can send to other players.
             </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={lobbyjoinImg}
+                alt="Main menu and create-room UI showing code and name fields"
+                className="howto-image"
+              />
+              <div className="howto-media-label">
+                Example of entering your name and creating a new game room.
+              </div>
+            </div>
             <h3>Joining a room</h3>
             <p>
               If a friend has already created a room, enter their code on the
-              join screen. Once you join, you&apos;ll see their name and any other
-              players waiting in the lobby before the game starts.
-            </p>
-            <h3>Sharing room codes</h3>
-            <p>
-              Room codes are short and easy to share in chat or verbally. Anyone
-              with the code can join while the room is open, up to the maximum
-              player count supported by the game.
+              join screen. Once you join, you&apos;ll see their name and any
+              other players waiting in the lobby before the game starts.
             </p>
             <div className="howto-media-placeholder">
               <img
@@ -83,6 +92,23 @@ export const HowToPlay: React.FC = () => {
               />
               <div className="howto-media-label">
                 Example of entering your name and room code to join a game.
+              </div>
+            </div>
+            <h3>Sharing room codes</h3>
+            <p>
+              Room codes are short and easy to share in chat or verbally. Anyone
+              with the code can join while the room is open, up to the maximum
+              player count supported by the game.
+            </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={lobbyshareImg}
+                alt="Main menu and join-room UI showing code and name fields"
+                className="howto-image"
+              />
+              <div className="howto-media-label">
+                Tip: Double-check the room code with your friends to avoid
+                joining the wrong game!
               </div>
             </div>
           </>
@@ -96,12 +122,52 @@ export const HowToPlay: React.FC = () => {
               Each player has a property collection (estate field), a bank, and
               a personal hand at the edge closest to them.
             </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={boardLabeledImg}
+                alt="Board labeled with bank, property collection, discard pile and hand"
+                className="example-board"
+              />
+              <div className="howto-media-label">
+                Labeled board showing each player space, the central discard
+                pile, and the status top bar.
+              </div>
+            </div>
             <h3>Bank</h3>
             <p>
-              Your bank holds money cards and any cards you&apos;ve chosen to treat
-              as money. The total value is shown as Bollar ({String.fromCharCode(0x20BF)})
-              at the top of the bank.
+              Your bank holds money cards and any cards you&apos;ve chosen to
+              treat as money. The total value is shown as Bollar (
+              {String.fromCharCode(0x20bf)}) at the top of the bank.
             </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={bankinfo}
+                alt="Player bank showing money cards and total Bollar value"
+                className="example-board"
+              />
+              <div className="howto-media-label">
+                The bank holds your money cards and displays the total Bollar
+                value at the top.
+              </div>
+            </div>
+
+            <h3>Top status bar</h3>
+            <p>
+              The top bar shows important information about the current game
+              state, including whose turn it is, how many plays remain, and
+              buttons for positioning cards and ending your turn.
+            </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={boardTopbarImg}
+                alt="Board top bar showing turn indicator, plays remaining, position and end turn buttons"
+                className="example-board"
+              />
+              <div className="howto-media-label">
+                The top status bar highlights the current player, plays left,
+                and has quick access to positioning and ending your turn.
+              </div>
+            </div>
             <h3>Estate / property collection</h3>
             <p>
               The estate field is a 5 × 2 grid of property slots that holds
@@ -109,26 +175,24 @@ export const HowToPlay: React.FC = () => {
               completed sets are visually marked so you can see rent potential
               at a glance.
             </p>
+
             <h3>Property slots</h3>
             <p>
               When you play a property card, it is added to a set. Some cards
               can move between sets, and some can be developed with houses or
-              hotels for extra power.
+              hotels for extra rent. Use the positioning tools to organize your
+              properties and optimize your layout to win.
             </p>
+
             <div className="howto-media-placeholder">
               <img
-                src={boardLabeledImg}
-                alt="Board labeled with bank, property collection, discard pile and hand"
-                className="howto-image"
-              />
-              <img
-                src={boardTopbarImg}
-                alt="Top bar showing room info, whose turn it is, and plays left"
+                src={propslot}
+                alt="Example of property slots showing grouped properties and completed sets"
                 className="howto-image"
               />
               <div className="howto-media-label">
-                Labeled board showing each player space, the central discard
-                pile, and the status top bar.
+                Example property slots showing grouped properties and completed
+                sets.
               </div>
             </div>
           </>
@@ -149,14 +213,34 @@ export const HowToPlay: React.FC = () => {
               and counts toward winning. Some properties are wild and can belong
               to multiple colors.
             </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={propertycardsImg}
+                alt="Example property cards showing different colors and values"
+                className="howto-image"
+              />
+              <div className="howto-media-label">
+                Example property cards in various colors and values.
+              </div>
+            </div>
             <h3>Action cards</h3>
             <p>
               Action cards let you charge rent, steal or swap properties, and
               respond to opponents. Examples include Deal Breaker, Sly Deal,
-              Forced Deal, Debt Collector, and It&apos;s My Birthday. These cards
-              are played from your hand and typically cost one of your plays for
-              the turn.
+              Forced Deal, Debt Collector, and It&apos;s My Birthday. These
+              cards are played from your hand and typically cost one of your
+              plays for the turn.
             </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={actioncardsImg}
+                alt="Example action cards showing different actions and values"
+                className="howto-image"
+              />
+              <div className="howto-media-label">
+                Example action cards with various effects and Bollar values.
+              </div>
+            </div>
             <h3>Wild cards</h3>
             <p>
               Wild property cards can count as two specific colors (like Red &
@@ -164,14 +248,41 @@ export const HowToPlay: React.FC = () => {
               choose which color they currently represent, as long as you follow
               the set rules described on the card.
             </p>
+            <div>
+              <img
+                src={wildcardsImg}
+                alt="Example wild property cards showing different color combinations"
+                className="howto-image"
+              />
+              <div
+                className="howto-media-label"
+                style={{ justifyContent: "center", display: "flex" }}
+              >
+                Example wild property cards that can represent multiple colors.
+              </div>
+            </div>
             <h3>Money cards</h3>
             <p>
-              Money cards are pure Bollar ({String.fromCharCode(0x20BF)}) value and live in your bank.
-              Many action cards also have a Bollar value in the corner and can
-              be banked instead of played. When you&apos;re charged rent or
-              targeted by actions like Debt Collector or Birthday, you pay using
-              cards from your bank first, then from your properties if needed.
+              Money cards are pure Bollar ({String.fromCharCode(0x20bf)}) value
+              and live in your bank. Many action cards also have a Bollar value
+              in the corner and can be banked instead of played. When
+              you&apos;re charged rent or targeted by actions like Debt
+              Collector or Birthday, you pay using cards from your bank first,
+              then from your properties if needed.
             </p>
+            <div>
+              <img
+                src={moneycardsImg}
+                alt="Example money cards showing different Bollar values"
+                className="howto-image"
+              />
+              <div
+                className="howto-media-label"
+                style={{ justifyContent: "center", display: "flex" }}
+              >
+                Example money cards with various Bollar values for banking.
+              </div>
+            </div>
             <div className="howto-media-placeholder">
               <div className="howto-media-label">
                 Tip: Check card values before banking or playing an action.
@@ -207,8 +318,8 @@ export const HowToPlay: React.FC = () => {
             <h3>Card number rules</h3>
             <p>
               There is a maximum number of cards you can hold at the end of your
-              turn. If you exceed it, you&apos;ll need to discard down before the
-              next player begins.
+              turn. If you exceed it, you&apos;ll need to discard down before
+              the next player begins.
             </p>
             <div className="howto-media-placeholder">
               <img
@@ -228,18 +339,30 @@ export const HowToPlay: React.FC = () => {
           <>
             <h2>How to Win</h2>
             <p>
-              The goal of Blockopoly is to complete enough powerful property
-              sets before anyone else. When a player meets the winning
-              conditions, the game ends and everyone is taken to the winner
-              screen.
+              The goal of Blockopoly is to complete enough property sets before
+              anyone else. When a player meets the winning conditions, the game
+              ends and everyone is taken to the winner screen.
             </p>
             <h3>Winning conditions</h3>
             <p>
-              A standard game is won by completing a target number of full
-              property sets in different colors (for example, three complete
-              sets). Houses and hotels can make those sets more valuable but do
-              not usually replace the need for completed sets.
+              A standard game is won by completing a 3 full property sets(for
+              example, three complete sets would be Blue, Red and Brown). Houses
+              and hotels can make those sets more valuable but do not replace
+              the need for completed sets.
             </p>
+            <div className="howto-media-placeholder">
+              <img
+                src={winnerConditionImg}
+                alt="Player set approaching winning condition has 2 full sets and 1 partial set"
+                className="howto-image"
+              />
+              <div className="howto-media-label">
+                Example player board showing two completed sets (red and Orange)
+                and one incomplete set (blue). This player is one set away from
+                winning.
+              </div>
+            </div>
+
             <h3>Winner screen</h3>
             <p>
               At the end of the game, you&apos;ll see who won, which sets they
@@ -248,7 +371,7 @@ export const HowToPlay: React.FC = () => {
             </p>
             <div className="howto-media-placeholder">
               <img
-                src={winnerConditionImg}
+                src={WinnerScreen}
                 alt="Winner screen showing completed sets and winning summary"
                 className="howto-image"
               />
