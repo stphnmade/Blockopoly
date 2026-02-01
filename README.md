@@ -7,4 +7,4 @@ Joel Valerio
 Bleu Sanchez  
 Lukman Moyosore  
 
-Game is live @ [Blockopoly](playblockopoly.com)
+Game is live @ [Blockopoly](www.playblockopoly.com)
