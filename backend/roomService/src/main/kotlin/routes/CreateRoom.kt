@@ -13,6 +13,8 @@ import com.roomservice.ROOM_TO_PLAYERS_PREFIX
 import com.roomservice.ROOM_CLIENT_TO_PLAYER_PREFIX
 import com.roomservice.RoomBroadcastType
 import com.roomservice.SECS_IN_HOUR
+import com.roomservice.ROOM_IDLE_TTL_SECONDS
+import com.roomservice.touchRoom
 import com.roomservice.models.Player
 import com.roomservice.models.RoomSubChannel
 import com.roomservice.util.format
@@ -48,7 +50,6 @@ suspend fun createRoomHandler(call: ApplicationCall, session : ServerSSESession)
     val hostFuture = redis.setex(PLAYER_TO_ROOM_PREFIX + hostID, SECS_IN_HOUR, roomID).asDeferred()
     val nameFuture = redis.setex(PLAYER_TO_NAME_PREFIX + hostID, SECS_IN_HOUR, userName).asDeferred()
     val roomFuture = redis.lpush(ROOM_TO_PLAYERS_PREFIX + roomID, hostID).asDeferred()
-    redis.expire(ROOM_TO_PLAYERS_PREFIX + roomID, SECS_IN_HOUR)
 
     val maxRetries = 3
     var genCodeAttempts = 0
@@ -80,6 +81,8 @@ suspend fun createRoomHandler(call: ApplicationCall, session : ServerSSESession)
     )
 
     if (null !in arrayOf(hostStatus, nameStatus, roomToCodeStatus) && roomStatus == 1L) {
+        // Initialize metadata + TTL for a brand-new room.
+        touchRoom(redis, roomID, ROOM_IDLE_TTL_SECONDS)
         // Persist clientId -> playerId mapping for reconnect if provided
         if (!clientId.isNullOrBlank()) {
             redis.setex(

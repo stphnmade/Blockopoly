@@ -14,7 +14,6 @@ import io.ktor.server.sse.SSE
 import io.lettuce.core.RedisClient
 import io.lettuce.core.api.StatefulRedisConnection
 import io.lettuce.core.api.async.RedisAsyncCommands
-import org.koin.ktor.ext.get
 import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
@@ -54,7 +53,10 @@ fun Application.configureAdministration() {
     attributes.put(LETTUCE_REDIS_CLIENT_KEY, redisClient)
     attributes.put(LETTUCE_REDIS_CONNECTION_KEY, connection)
     attributes.put(LETTUCE_REDIS_COMMANDS_KEY,  asyncCommands)
-    attributes.put(PUBSUB_MANAGER_KEY, get<RedisPubSubManager>())
+    attributes.put(PUBSUB_MANAGER_KEY, inject<RedisPubSubManager>().value)
+
+    // Start room janitor for Redis-backed room metadata/keys.
+    startRoomJanitor(asyncCommands)
 
     monitor.subscribe(ApplicationStopping) {
         connection.close()

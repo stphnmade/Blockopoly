@@ -108,3 +108,11 @@ data class MoveProperty(
     val position: Int? = null,
     val toColor: Color? = null
 ) : GameAction
+
+@Serializable
+@SerialName("PING")
+data class Ping(val ts: Long) : GameAction
+
+@Serializable
+@SerialName("PONG")
+data class Pong(val ts: Long) : GameAction

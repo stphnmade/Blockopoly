@@ -167,6 +167,7 @@ const ALL_COLOR_COUNT = 10;
 const BIRTHDAY_PAYMENT_AMOUNT = 2;
 const DEBT_COLLECTOR_PAYMENT_AMOUNT = 5;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
+const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
 
 /** Click-only hand card (drag removed) */
   const DraggableCard: React.FC<{
@@ -281,6 +282,7 @@ const PlayScreen: React.FC = () => {
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const lastPingRef = useRef<number>(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(500);
   const shouldReconnectRef = useRef(true);
@@ -308,6 +310,28 @@ const PlayScreen: React.FC = () => {
     ws.send(JSON.stringify(action));
   }, []);
   const restartRequestedRef = useRef(false);
+
+  // Heartbeat: send a PING action every ROOM_HEARTBEAT_INTERVAL_MS while connected.
+  useEffect(() => {
+    let cancelled = false;
+
+    const tick = () => {
+      if (cancelled) return;
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const ts = Date.now();
+        lastPingRef.current = ts;
+        ws.send(JSON.stringify({ type: "PING", ts }));
+      }
+      setTimeout(tick, ROOM_HEARTBEAT_INTERVAL_MS);
+    };
+
+    const id = setTimeout(tick, ROOM_HEARTBEAT_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, []);
 
   const playSound = useCallback(
     (src: string, baseVolume = 0.85, fadeIn = false) => {

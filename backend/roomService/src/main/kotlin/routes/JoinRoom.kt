@@ -28,6 +28,8 @@ import kotlinx.coroutines.future.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.UUID
+import com.roomservice.ROOM_IDLE_TTL_SECONDS
+import com.roomservice.touchRoom
 
 @Serializable
 data class JoinRoomResponse(val playerId: String = "", val name: String = "", val roomId: String = "", val roomCode: String = "", val players: List<Player> = emptyList())
@@ -85,6 +87,8 @@ suspend fun joinRoomHandler(call: ApplicationCall, session: ServerSSESession) {
         val channel = pubSubManager.subscribe(roomID)
         val successfulUpdate = updateDatastore(playerID, userName, roomID, redis, session)
         if (successfulUpdate.first) {
+            // Mark activity on the room.
+            touchRoom(redis, roomID, ROOM_IDLE_TTL_SECONDS)
             // Persist clientId -> playerId mapping for reconnect if provided
             if (!clientId.isNullOrBlank()) {
                 redis.setex(

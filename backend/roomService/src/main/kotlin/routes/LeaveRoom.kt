@@ -4,6 +4,7 @@ import com.roomservice.LETTUCE_REDIS_COMMANDS_KEY
 import com.roomservice.PLAYER_TO_NAME_PREFIX
 import com.roomservice.PLAYER_TO_ROOM_PREFIX
 import com.roomservice.ROOM_TO_PLAYERS_PREFIX
+import com.roomservice.ROOM_EMPTY_TTL_SECONDS
 import com.roomservice.RoomBroadcastType
 import com.roomservice.models.Player
 import io.ktor.http.HttpStatusCode
@@ -11,6 +12,7 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.response.respond
 import io.lettuce.core.api.async.RedisAsyncCommands
 import kotlinx.coroutines.future.await
+import com.roomservice.touchRoom
 
 
 suspend fun leaveRoomHandler(call: ApplicationCall) {
@@ -53,6 +55,8 @@ suspend fun leaveRoomHelper(playerId: String, redis: RedisAsyncCommands<String, 
 
     val numberRemaining = redis.llen(ROOM_TO_PLAYERS_PREFIX + roomId).await()
     if (numberRemaining == 0L) {
+        // No players left: mark room as empty and start aggressive TTL.
+        touchRoom(redis, roomId, ROOM_EMPTY_TTL_SECONDS)
         closeRoomHandler(roomId = roomId, redis = redis)
         return HttpStatusCode.OK
     }

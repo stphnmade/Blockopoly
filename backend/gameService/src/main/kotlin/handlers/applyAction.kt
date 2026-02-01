@@ -15,6 +15,8 @@ import com.gameservice.models.GameState
 import com.gameservice.models.JustSayNo
 import com.gameservice.models.MoveProperty
 import com.gameservice.models.PassGo
+import com.gameservice.models.Ping
+import com.gameservice.models.Pong
 import com.gameservice.models.PlayDoubleRent
 import com.gameservice.models.PlayDevelopment
 import com.gameservice.models.PlayMoney
@@ -47,5 +49,7 @@ suspend fun applyAction(room: DealGame, game: MutableStateFlow<GameState>, playe
         is Discard -> discard(room, game, playerId, action)
         is MoveProperty -> moveProperty(room, game, playerId, action)
         is RestartGame -> return game.value
+        is Ping -> game.value
+        is Pong -> game.value
     }
 }

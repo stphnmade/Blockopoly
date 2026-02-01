@@ -3,6 +3,8 @@ package com.gameservice
 import com.gameservice.models.Command
 import com.gameservice.models.GameAction
 import com.gameservice.models.StartTurn
+import com.gameservice.models.Ping
+import com.gameservice.models.Pong
 import com.gameservice.models.VisibleGameState
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -30,6 +32,10 @@ fun Application.configureRouting() {
                         val actionCommand = Json.decodeFromString<GameAction>(frame.readText())
                         when (actionCommand) {
                             is StartTurn -> {}
+                            is Ping -> {
+                                // Simple echo; game loop is still driven by other commands.
+                                outgoing.send(Frame.Text(Json.encodeToString(GameAction.serializer(), Pong(actionCommand.ts))))
+                            }
                             else -> game.sendCommand(Command(playerId, actionCommand))
                         }
                     }
