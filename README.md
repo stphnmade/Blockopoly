@@ -6,3 +6,5 @@ Stephen Syl-Akinwale
 Joel Valerio  
 Bleu Sanchez  
 Lukman Moyosore  
+
+Game is live @ [Blockopoly](playblockopoly.com)
