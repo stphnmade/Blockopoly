@@ -9,3 +9,11 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/asset-cache-sw.js").catch(() => {
+      /* Asset caching is an optimization; the app should still run without it. */
+    });
+  });
+}

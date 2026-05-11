@@ -24,7 +24,7 @@
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 16px;
+  bottom: 10px;
   z-index: 60;
   display: flex;
   justify-content: center;
@@ -34,8 +34,8 @@
 .mat-hand-row {
   pointer-events: auto;
   display: flex;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 6px 10px;
   border-radius: var(--mat-radius-panel);
   background: rgba(17,19,23,.75);
   backdrop-filter: blur(4px);
@@ -45,15 +45,18 @@
 .mat-hand-side {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   align-items: flex-start;
   margin-right: 6px;
 }
 
 .mat-hand-cards {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: flex-end;
+  max-width: min(76vw, 760px);
+  overflow-x: auto;
+  padding: 2px 2px 4px;
 }
 
 .zone {
