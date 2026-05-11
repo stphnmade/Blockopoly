@@ -44,12 +44,13 @@ import type {
   RentColorOption,
   ServerCard,
 } from "./play/types";
-import { SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soundBoard";
+import { PRELOAD_SFX, SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soundBoard";
 
 // Drag-and-drop removed: using click/menu interactions only
 
 import { cardAssetMap } from "../utils/cardmapping";
 const cardBack = new URL("../assets/cards/card-back.svg", import.meta.url).href;
+const blockopolyLogo = new URL("../assets/Blockopoly-logo.png", import.meta.url).href;
 
 /** Mat components (2-5 players) */
 export type PlaymatProps = {
@@ -152,6 +153,7 @@ type Action =
 type ChargeKind = "RENT" | "BIRTHDAY" | "DEBT_COLLECTOR";
 type ToastKind = "info" | "error";
 type Toast = { id: number; message: string; kind: ToastKind };
+type ActivityEntry = { id: number; message: string; kind: ToastKind };
 
 const GAME_API = import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
 const toWs = (base: string) =>
@@ -276,6 +278,8 @@ const PlayScreen: React.FC = () => {
   const [rentPropertySelection, setRentPropertySelection] = useState<number[]>([]);
   const [rentDoublers, setRentDoublers] = useState<number[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
+  const [showActivityLog, setShowActivityLog] = useState(false);
   // activeCard state removed with drag/drop
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
@@ -294,6 +298,7 @@ const PlayScreen: React.FC = () => {
   const bgmResumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sliderHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rentChargeKeyRef = useRef<string | null>(null);
+  const latestTurnRef = useRef<string | null>(null);
   const sfxPoolRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const sfxFadeTimersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
@@ -423,9 +428,15 @@ const PlayScreen: React.FC = () => {
     [playSound]
   );
 
+  const pushActivity = useCallback((message: string, kind: ToastKind = "info") => {
+    const id = toastIdRef.current++;
+    setActivityLog((prev) => [{ id, message, kind }, ...prev].slice(0, 12));
+  }, []);
+
   const pushToast = useCallback((message: string, kind: ToastKind = "info") => {
     const id = toastIdRef.current++;
     setToasts((prev) => [...prev, { id, message, kind }]);
+    setActivityLog((prev) => [{ id, message, kind }, ...prev].slice(0, 12));
     const timer = setTimeout(() => {
       setToasts((prev) => prev.filter((toast) => toast.id !== id));
       toastTimers.current.delete(id);
@@ -472,10 +483,20 @@ const PlayScreen: React.FC = () => {
   const handleStateSnapshot = useCallback(
     (snapshot: ServerGameState) => {
       setGame(snapshot);
+      if (snapshot.playerAtTurn && latestTurnRef.current !== snapshot.playerAtTurn) {
+        const hadPreviousTurn = latestTurnRef.current !== null;
+        latestTurnRef.current = snapshot.playerAtTurn;
+        const message = `${displayName(snapshot.playerAtTurn)} starts their turn.`;
+        if (hadPreviousTurn) {
+          pushToast(message, "info");
+        } else {
+          pushActivity(message, "info");
+        }
+      }
       const mine = snapshot.playerState?.[myPID];
       animateToNewHand(mine?.hand ?? []);
     },
-    [myPID, animateToNewHand]
+    [myPID, pushActivity, pushToast, displayName, animateToNewHand]
   );
 
   const handleDraw = useCallback(
@@ -826,6 +847,10 @@ const PlayScreen: React.FC = () => {
         if ((msg as any).type === "START_TURN") {
           const pid = (msg as any).playerId as string;
           setGame((g) => (g ? { ...g, playerAtTurn: pid } : g));
+          if (latestTurnRef.current !== pid) {
+            latestTurnRef.current = pid;
+            pushToast(`${displayName(pid)} starts their turn.`, "info");
+          }
           return;
         }
         if ((msg as any).type === "DRAW") {
@@ -873,6 +898,26 @@ const PlayScreen: React.FC = () => {
       wsRef.current = null;
     };
   }, [connect]);
+
+  useEffect(() => {
+    const uniqueCardAssets = Array.from(new Set(Object.values(cardAssetMap)));
+    uniqueCardAssets.forEach((src) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+    });
+
+    if (typeof Audio === "undefined") return;
+    PRELOAD_SFX.forEach((src) => {
+      try {
+        const audio = new Audio(src);
+        audio.preload = "auto";
+        audio.load();
+      } catch {
+        /* ignore preload errors */
+      }
+    });
+  }, []);
 
   /** Derived */
   const isMyTurn = game?.playerAtTurn === myPID;
@@ -2453,6 +2498,60 @@ const PlayScreen: React.FC = () => {
   const devLabel = devType ? formatActionLabel(devType) : "Development";
   const devRespondingTo = (devJsnInteraction?.toPlayer as string | undefined) ?? myPID;
 
+  const hasTargetedTopbarAction = Boolean(
+    rentCharge ||
+      rentJsnInteraction ||
+      devJsnInteraction ||
+      dealInteraction
+  );
+  const topbarMode = hasTargetedTopbarAction
+    ? "targeted"
+    : isMyTurn
+      ? "active"
+      : "waiting";
+  const turnRibbonPids = orderedPids.length > 0 ? orderedPids : rotatedPids;
+  const currentTurnIndex = game?.playerAtTurn
+    ? turnRibbonPids.indexOf(game.playerAtTurn)
+    : -1;
+  const nextTurnPid =
+    currentTurnIndex >= 0 && turnRibbonPids.length > 1
+      ? turnRibbonPids[(currentTurnIndex + 1) % turnRibbonPids.length]
+      : null;
+  const isUserNext = nextTurnPid === myPID;
+
+  const targetedTopbarTitle = rentCharge
+    ? chargeTitle
+    : rentJsnInteraction
+      ? "Just Say No"
+      : devJsnInteraction
+        ? `Block ${devLabel}?`
+        : dealInteraction && dealIsAggressor
+          ? "Just Say No"
+          : dealTitle || "Action Required";
+  const targetedTopbarText = rentCharge
+    ? chargeSubtitle
+    : rentJsnInteraction
+      ? rentJsnSubtitle
+      : devJsnInteraction
+        ? `${displayName(devRequester)} played ${devLabel}.`
+        : dealInteraction && dealIsAggressor
+          ? `${displayName(dealInteraction?.toPlayer)} played Just Say No against your ${dealTitle}.`
+          : dealSubtitle || pendingBannerText || "Resolve the pending action.";
+  const targetedTopbarCta = rentCharge
+    ? "Pay Now"
+    : rentJsnInteraction || dealInteraction || devJsnInteraction
+      ? "Respond"
+      : "Resolve";
+
+  const focusTargetedAction = useCallback(() => {
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    const firstAction = dialog?.querySelector<HTMLElement>(
+      "button:not(:disabled), [tabindex]:not([tabindex='-1'])"
+    );
+    dialog?.scrollIntoView({ block: "center", inline: "nearest" });
+    firstAction?.focus();
+  }, []);
+
   // Background music: looped track for the game screen
   useEffect(() => {
     if (typeof Audio === "undefined") return;
@@ -2502,36 +2601,118 @@ const PlayScreen: React.FC = () => {
   return (
     <div className="play-screen">
       {/* Top bar */}
-      <div className="play-topbar">
-        <div>
-          Room Code: <b>{roomCode || "-"}</b>
+      <div className={`play-topbar mode-${topbarMode}`}>
+        <div className="topbar-brand">
+          <img src={blockopolyLogo} alt="Blockopoly" className="topbar-logo" />
+          <div className="topbar-room">
+            <span className="topbar-label">Room</span>
+            <b>{roomCode || "-"}</b>
+          </div>
         </div>
-        <div>
-          Room ID: <b>{roomId || "-"}</b>
+
+        <div className="topbar-main">
+          {topbarMode === "targeted" && (
+            <div className="topbar-targeted">
+              <div className="targeted-copy">
+                <span className="topbar-kicker">Action Required</span>
+                <b>{targetedTopbarTitle}</b>
+                <span>{targetedTopbarText}</span>
+              </div>
+              <button
+                type="button"
+                className="topbar-primary danger"
+                onClick={focusTargetedAction}
+              >
+                {targetedTopbarCta}
+              </button>
+            </div>
+          )}
+
+          {topbarMode === "active" && (
+            <div className="topbar-active-turn">
+              <div className="turn-summary">
+                <span className="topbar-kicker">Your Turn</span>
+                <b>{myName || "You"}</b>
+              </div>
+              <div className={`plays-badge ${playsLeft <= 1 ? "low" : ""}`}>
+                <span>{playsLeft}</span>
+                <small>{playsLeft === 1 ? "play left" : "plays left"}</small>
+              </div>
+              <button
+                className="position-button"
+                onClick={openPositioning}
+                disabled={!isMyTurn || isDiscarding || myPropertySets.length === 0}
+              >
+                Position
+              </button>
+              <button
+                type="button"
+                className="topbar-primary"
+                onClick={sendEndTurn}
+                disabled={!isMyTurn || isDiscarding || isPositioning}
+              >
+                End Turn
+              </button>
+            </div>
+          )}
+
+          {topbarMode === "waiting" && (
+            <div className="topbar-waiting-turn">
+              <div className="turn-ribbon" aria-label="Turn order">
+                {turnRibbonPids.map((pid) => {
+                  const isActivePid = pid === game?.playerAtTurn;
+                  const isMePid = pid === myPID;
+                  return (
+                    <div
+                      key={pid}
+                      className={`turn-chip ${isActivePid ? "active" : ""} ${
+                        isMePid ? "me" : ""
+                      }`}
+                    >
+                      <span className="turn-chip-name">{displayName(pid)}</span>
+                      {isActivePid && (
+                        <span className="turn-chip-plays">{playsLeft}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="waiting-copy">
+                <span className="topbar-kicker">Waiting</span>
+                <b>{displayName(game?.playerAtTurn)} is playing</b>
+                <span>{isUserNext ? "You are next." : "Watch the board and get ready."}</span>
+              </div>
+            </div>
+          )}
         </div>
-        <div>
-          You: <b>{myName || "You"}</b>
+
+        <div className="topbar-utility">
+          <div className="topbar-stat">
+            <span className="topbar-label">Draw</span>
+            <b>{game?.drawPileSize ?? "-"}</b>
+          </div>
+          <button
+            type="button"
+            className="topbar-log-button"
+            onClick={() => setShowActivityLog((prev) => !prev)}
+            aria-expanded={showActivityLog}
+            aria-controls="activity-log-panel"
+          >
+            Log
+            {activityLog.length > 0 && (
+              <span
+                className="activity-log-count"
+                aria-label={`${activityLog.length} log entries`}
+              >
+                {activityLog.length}
+              </span>
+            )}
+          </button>
+          <div
+            className={`ws-dot ${wsReady ? "on" : "off"}`}
+            title={wsReady ? "Connected" : "Reconnecting..."}
+          />
         </div>
-        <div>
-          Turn: <b>{displayName(game?.playerAtTurn)}</b>
-        </div>
-        <div>
-          Draw pile: <b>{game?.drawPileSize ?? "-"}</b>
-        </div>
-        <div>
-          Plays left: <b>{playsLeft}</b>
-        </div>
-        <button
-          className="position-button"
-          onClick={openPositioning}
-          disabled={!isMyTurn || isDiscarding || myPropertySets.length === 0}
-        >
-          Position
-        </button>
-        <div
-          className={`ws-dot ${wsReady ? "on" : "off"}`}
-          title={wsReady ? "Connected" : "Reconnecting..."}
-        />
       </div>
 
       <div className="play-area">
@@ -2606,8 +2787,35 @@ const PlayScreen: React.FC = () => {
           )}
         </div>
 
-        {hasPendingInteractions && pendingBannerText && (
+        {hasPendingInteractions && pendingBannerText && !hasTargetedTopbarAction && (
           <div className="rent-notice">{pendingBannerText}</div>
+        )}
+
+        {showActivityLog && (
+          <aside id="activity-log-panel" className="activity-log" aria-label="Game log">
+            <div className="activity-log-header">
+              <div className="activity-log-title">Log</div>
+              <button
+                type="button"
+                className="activity-log-close"
+                onClick={() => setShowActivityLog(false)}
+                aria-label="Close game log"
+              >
+                Close
+              </button>
+            </div>
+            <div className="activity-log-list">
+              {activityLog.length === 0 ? (
+                <div className="activity-log-empty">No plays yet.</div>
+              ) : (
+                activityLog.map((entry) => (
+                  <div key={entry.id} className={`activity-log-entry ${entry.kind}`}>
+                    {entry.message}
+                  </div>
+                ))
+              )}
+            </div>
+          </aside>
         )}
       </div>
 

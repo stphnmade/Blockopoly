@@ -28,6 +28,25 @@ export const SFX_RENT = "/sfx/rent.mp3";
 export const SFX_ACTION_OVERLAY = "/sfx/action_overlay.mp3";
 export const SFX_ACTION_GENERIC = "/sfx/action_generic.mp3";
 
+export const PRELOAD_SFX = [
+  SFX_PASS_GO,
+  SFX_JUST_SAY_NO,
+  SFX_DEAL_BREAKER,
+  SFX_DEBT_COLLECTOR,
+  SFX_FORCED_DEAL,
+  SFX_SLY_DEAL,
+  SFX_BIRTHDAY,
+  SFX_HOUSE,
+  SFX_HOTEL,
+  SFX_DOUBLE_RENT,
+  SFX_WILD_RENT,
+  SFX_RENT,
+  SFX_ACTION_OVERLAY,
+  SFX_ACTION_GENERIC,
+  "/sfx/game_bgm.mp3",
+  "/sfx/winner_sound.mp3",
+];
+
 export const ACTION_SFX_MAP: Record<ActionSfxKey, string> = {
   PASS_GO: SFX_PASS_GO,
   JUST_SAY_NO: SFX_JUST_SAY_NO,
