@@ -25,7 +25,7 @@ export default function PropertySetGrid({
   while (slots.length < SLOT_COUNT) slots.push(null);
 
   const [probeSetKey, setProbeSetKey] = useState<string | null>(null);
-  const [focusedCardId, setFocusedCardId] = useState<number | null>(null);
+  const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const activeSet = useMemo(
     () => sets.find((s) => s.key === probeSetKey) ?? null,
     [sets, probeSetKey]

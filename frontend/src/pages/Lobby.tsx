@@ -12,9 +12,9 @@ import {
   HOST_ID_KEY,
 } from "../constants/constants.ts";
 import { getClientId } from "../utils/clientId";
+import { ROOM_SERVICE_URL } from "../config/services";
 
-// Use Vite-style env var; fallback for local dev
-const API = import.meta.env.VITE_ROOM_SERVICE ?? "http://localhost:8080";
+const API = ROOM_SERVICE_URL;
 
 const buildSSEURL = (
   room: string,

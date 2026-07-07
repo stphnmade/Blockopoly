@@ -10,8 +10,9 @@ import {
   ROOM_ID_KEY,
 } from "../constants/constants.ts";
 import { getClientId } from "../utils/clientId";
+import { ROOM_SERVICE_URL } from "../config/services";
 
-const API = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
+const API = ROOM_SERVICE_URL;
 
 export type initialRoomState = {
   playerId: string;

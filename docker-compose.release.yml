@@ -1,0 +1,48 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  room-service:
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?set IMAGE_NAMESPACE}/blockopoly-room-service:${IMAGE_TAG:-main}
+    environment:
+      PORT: 8080
+      KTOR_REDIS_HOST: redis
+      KTOR_REDIS_PORT: 6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  game-service:
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?set IMAGE_NAMESPACE}/blockopoly-game-service:${IMAGE_TAG:-main}
+    environment:
+      PORT: 8081
+      KTOR_REDIS_HOST: redis
+      KTOR_REDIS_PORT: 6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_NAMESPACE:?set IMAGE_NAMESPACE}/blockopoly-frontend:${IMAGE_TAG:-main}
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - frontend
+      - room-service
+      - game-service
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+
+volumes:
+  redis_data:

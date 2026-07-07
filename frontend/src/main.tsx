@@ -10,7 +10,7 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-if ("serviceWorker" in navigator) {
+if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/asset-cache-sw.js").catch(() => {
       /* Asset caching is an optimization; the app should still run without it. */

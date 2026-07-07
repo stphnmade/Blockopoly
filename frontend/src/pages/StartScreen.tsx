@@ -8,9 +8,10 @@ import "../style/StartScreen.css";
 type Props = {
   onStart: () => void; // parent decides where to go
   onLearn?: () => void;
+  onAbout?: () => void;
 };
 
-export const StartScreen: React.FC<Props> = ({ onStart, onLearn }) => {
+export const StartScreen: React.FC<Props> = ({ onStart, onLearn, onAbout }) => {
   const handleClick = () => {
     new Audio(clickSound).play();
 
@@ -35,6 +36,13 @@ export const StartScreen: React.FC<Props> = ({ onStart, onLearn }) => {
           onClick={() => onLearn && onLearn()}
         >
           Learn How to Play
+        </button>
+        <button
+          type="button"
+          className="learn-button about-button"
+          onClick={() => onAbout && onAbout()}
+        >
+          About & Downloads
         </button>
       </div>
     </div>

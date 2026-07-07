@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import PropertySetGrid from "../properties/PropertySetGrid";
 import { buildPlayerPropertyGridVM } from "../../lib/adapters/buildPlayerPropertyGridVM";
 import "./mat_styles/PlaymatTable.css";

@@ -10,6 +10,7 @@ import {
   ROOM_ID_KEY,
 } from "../constants/constants";
 import "../style/WinnerScreen.css";
+import { GAME_SERVICE_URL, toWebSocketUrl } from "../config/services";
 
 type WinnerNavState = {
   winnerId?: string;
@@ -17,15 +18,8 @@ type WinnerNavState = {
   winningColors?: string[];
 };
 
-const GAME_API =
-  import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
-
-const toWs = (base: string) =>
-  base
-    .replace(/^http(s?):\/\//, (_: string, s: string) =>
-      s ? "wss://" : "ws://"
-    )
-    .replace(/\/+$/, "");
+const GAME_API = GAME_SERVICE_URL;
+const toWs = toWebSocketUrl;
 
 const WinnerScreen: React.FC = () => {
   const { roomCode = "" } = useParams();

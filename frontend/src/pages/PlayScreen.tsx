@@ -11,7 +11,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { TbZoomInArea } from "react-icons/tb";
 import {
@@ -22,6 +21,7 @@ import {
   HOST_ID_KEY,
 } from "../constants/constants";
 import "../style/PlayScreen.css";
+import { GAME_SERVICE_URL, toWebSocketUrl } from "../config/services";
 import ChargeModal from "./play/components/ChargeModal";
 import DealBreakerModal from "./play/components/DealBreakerModal";
 import DealResponseModal from "./play/components/DealResponseModal";
@@ -155,13 +155,8 @@ type ToastKind = "info" | "error";
 type Toast = { id: number; message: string; kind: ToastKind };
 type ActivityEntry = { id: number; message: string; kind: ToastKind };
 
-const GAME_API = import.meta.env.VITE_GAME_SERVICE ?? "http://localhost:8081";
-const toWs = (base: string) =>
-  base
-    .replace(/^http(s?):\/\//, (_: string, s: string) =>
-      s ? "wss://" : "ws://"
-    )
-    .replace(/\/+$/, "");
+const GAME_API = GAME_SERVICE_URL;
+const toWs = toWebSocketUrl;
 const assetForCard = (c: ServerCard) =>
   !c || c.id === 999 ? cardBack : cardAssetMap[c.id] ?? cardBack;
 const MAX_HAND_SIZE = 7;

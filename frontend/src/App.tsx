@@ -2,6 +2,7 @@
 import React from "react";
 import {
   BrowserRouter as Router,
+  HashRouter,
   Routes,
   Route,
   useNavigate,
@@ -14,6 +15,7 @@ import Lobby from "./pages/Lobby";
 import WinnerScreen from "./pages/WinnerScreen";
 import { AnimatePresence, motion } from "framer-motion";
 import { HowToPlay } from "./pages/HowToPlay";
+import { AboutBlockopoly } from "./pages/AboutBlockopoly";
 
 /* ─── Animated wrapper with correct typing ─── */
 const AnimatedRoute: React.FC<{ children: React.ReactNode }> = ({
@@ -40,14 +42,20 @@ const StartRoute: React.FC = () => {
       <StartScreen
         onStart={() => navigate("/main")}
         onLearn={() => navigate("/learn")}
+        onAbout={() => navigate("/about")}
       />
     </AnimatedRoute>
   );
 };
 
 function App() {
+  const AppRouter =
+    typeof window !== "undefined" && window.location.protocol === "file:"
+      ? HashRouter
+      : Router;
+
   return (
-    <Router>
+    <AppRouter>
       {/* AnimatePresence outside Routes for page exit animation */}
       <AnimatePresence mode="wait">
         <Routes>
@@ -58,6 +66,15 @@ function App() {
             element={
               <AnimatedRoute>
                 <HowToPlay />
+              </AnimatedRoute>
+            }
+          />
+
+          <Route
+            path="/about"
+            element={
+              <AnimatedRoute>
+                <AboutBlockopoly />
               </AnimatedRoute>
             }
           />
@@ -108,7 +125,7 @@ function App() {
           />
         </Routes>
       </AnimatePresence>
-    </Router>
+    </AppRouter>
   );
 }
 

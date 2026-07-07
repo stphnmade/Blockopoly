@@ -13,7 +13,6 @@ export default function DevelopmentJsnModal({
   isOpen,
   devLabel,
   devRequester,
-  jsnCount,
   displayName,
   onAllow,
 }: Props) {
