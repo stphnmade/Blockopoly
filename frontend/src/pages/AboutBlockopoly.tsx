@@ -3,14 +3,14 @@ import { useNavigate } from "react-router-dom";
 import logo from "../assets/Blockopoly-logo.svg";
 import "../style/AboutBlockopoly.css";
 
-const RELEASE_URL = "https://github.com/Saparta/Blockopoly/releases/latest";
+const RELEASE_URL = "https://github.com/stphnmade/Blockopoly/releases/latest";
 const WEB_URL = "https://playblockopoly.com";
 
 const downloads = [
   {
     platform: "macOS",
     format: "DMG or ZIP",
-    detail: "For Apple laptops and desktops. Open the latest release and choose the macOS artifact.",
+    detail: "Choose mac-x64 for Intel Macs or mac-arm64 for Apple silicon.",
   },
   {
     platform: "Windows",

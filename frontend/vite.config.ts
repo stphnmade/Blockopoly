@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from "url";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: "./",
   server: {
     host: "0.0.0.0",
     allowedHosts: ["playblockopoly.com", "www.playblockopoly.com"],
