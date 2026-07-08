@@ -34,8 +34,16 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: blockopoly-${{ matrix.os }}
-          path: frontend/release/**
+          path: |
+            frontend/release/*.dmg
+            frontend/release/*.zip
+            frontend/release/*.AppImage
+            frontend/release/Blockopoly-*-win-x64.exe
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: frontend/release/**
+          files: |
+            frontend/release/*.dmg
+            frontend/release/*.zip
+            frontend/release/*.AppImage
+            frontend/release/Blockopoly-*-win-x64.exe
