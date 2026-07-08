@@ -61,11 +61,38 @@ Recommended flow:
 Use `docker-compose.release.yml` on the server once GHCR publishing is configured:
 
 ```bash
-export IMAGE_NAMESPACE=your-github-owner
+export IMAGE_NAMESPACE=stphnmade
 export IMAGE_TAG=main
 docker compose -f docker-compose.release.yml pull
 docker compose -f docker-compose.release.yml up -d
 ```
+
+The repo includes EC2 helper scripts under `ops/aws/`:
+
+- `deploy.sh`: pulls GHCR images, restarts the Compose stack, and checks the public endpoint.
+- `issue-cert.sh`: performs the first Let's Encrypt certificate issue for a configured domain.
+- `renew-cert.sh`: renews certificates and reloads the Nginx container.
+- `install-systemd.sh`: installs deploy and certificate renewal timers.
+
+On the EC2 instance:
+
+```bash
+cp .env.release.example .env.release
+nano .env.release
+
+chmod +x ops/aws/*.sh
+sudo ops/aws/install-systemd.sh
+sudo systemctl start blockopoly-deploy.service
+sudo systemctl status blockopoly-deploy.service
+```
+
+If GHCR packages are private, log in on the EC2 host before running deploy:
+
+```bash
+docker login ghcr.io
+```
+
+Use a GitHub token with package read access.
 
 ## Certificate Renewal
 
@@ -85,6 +112,8 @@ docker run --rm \
 
 docker compose -f docker-compose.release.yml exec nginx nginx -s reload
 ```
+
+The systemd timer installed by `ops/aws/install-systemd.sh` runs this renewal path twice daily.
 
 Before the August certificate expiry, verify renewal with:
 

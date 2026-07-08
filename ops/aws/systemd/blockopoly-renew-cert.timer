@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Blockopoly certificate renewal twice daily
+
+[Timer]
+OnCalendar=*-*-* 03,15:17:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

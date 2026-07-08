@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy Blockopoly Docker Compose stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__BLOCKOPOLY_ROOT__
+ExecStart=__BLOCKOPOLY_ROOT__/ops/aws/deploy.sh
