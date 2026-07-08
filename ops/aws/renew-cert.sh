@@ -19,7 +19,11 @@ fi
 docker run --rm \
   -v "$ROOT_DIR/nginx/certbot/www:/var/www/certbot" \
   -v "$ROOT_DIR/nginx/certbot/conf:/etc/letsencrypt" \
-  certbot/certbot renew --webroot -w /var/www/certbot
+  certbot/certbot renew \
+    --non-interactive \
+    --no-random-sleep-on-renew \
+    --webroot \
+    -w /var/www/certbot
 
 docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload
 

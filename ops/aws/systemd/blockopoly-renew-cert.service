@@ -8,3 +8,4 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=__BLOCKOPOLY_ROOT__
 ExecStart=__BLOCKOPOLY_ROOT__/ops/aws/renew-cert.sh
+TimeoutStartSec=10min
