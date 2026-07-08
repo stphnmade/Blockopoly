@@ -55,7 +55,7 @@ Recommended flow:
 
 1. GitHub Actions builds and publishes Docker images.
 2. The AWS host pulls known image tags.
-3. Docker Compose restarts the stack.
+3. Docker Compose restarts the app containers.
 4. A systemd timer or cron renews certificates and reloads Nginx.
 
 Use `docker-compose.release.yml` on the server once GHCR publishing is configured:
@@ -64,12 +64,13 @@ Use `docker-compose.release.yml` on the server once GHCR publishing is configure
 export IMAGE_NAMESPACE=stphnmade
 export IMAGE_TAG=main
 docker compose -f docker-compose.release.yml pull
-docker compose -f docker-compose.release.yml up -d
+docker compose -f docker-compose.release.yml up -d --no-deps frontend room-service game-service
+docker compose -f docker-compose.release.yml exec -T nginx nginx -s reload
 ```
 
 The repo includes EC2 helper scripts under `ops/aws/`:
 
-- `deploy.sh`: pulls GHCR images, restarts the Compose stack, and checks the public endpoint.
+- `deploy.sh`: pulls GHCR images, restarts the app containers, reloads Nginx, and checks the public endpoint.
 - `issue-cert.sh`: performs the first Let's Encrypt certificate issue for a configured domain.
 - `renew-cert.sh`: renews certificates and reloads the Nginx container.
 - `install-systemd.sh`: installs deploy and certificate renewal timers.
@@ -93,6 +94,12 @@ docker login ghcr.io
 ```
 
 Use a GitHub token with package read access.
+
+By default, `ops/aws/deploy.sh` does not recreate Redis or Nginx. This keeps the hosted game state, TLS edge, and certificate mounts stable during routine app releases. For planned infrastructure updates, run a full stack deploy explicitly:
+
+```bash
+FULL_STACK_DEPLOY=1 ops/aws/deploy.sh
+```
 
 ## Certificate Renewal
 

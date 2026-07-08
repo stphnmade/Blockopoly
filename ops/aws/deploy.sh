@@ -21,7 +21,18 @@ fi
 echo "Deploying Blockopoly images from ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE} with tag ${IMAGE_TAG}"
 
 docker compose -f "$COMPOSE_FILE" pull
-docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+
+if [[ "${FULL_STACK_DEPLOY:-0}" == "1" ]]; then
+  echo "Running full stack deploy."
+  docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+else
+  echo "Running app-only deploy. Set FULL_STACK_DEPLOY=1 to also recreate Redis/Nginx."
+  docker compose -f "$COMPOSE_FILE" up -d --no-deps frontend room-service game-service
+  if docker compose -f "$COMPOSE_FILE" ps --services --filter status=running | grep -qx nginx; then
+    docker compose -f "$COMPOSE_FILE" exec -T nginx nginx -s reload
+  fi
+fi
+
 docker compose -f "$COMPOSE_FILE" ps
 
 echo "Waiting for public endpoint..."
