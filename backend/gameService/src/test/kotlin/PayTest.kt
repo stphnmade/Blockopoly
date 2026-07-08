@@ -4,7 +4,6 @@ import com.gameservice.models.*
 import com.gameservice.util.payRent
 import kotlin.test.Test
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class PayTest {
 
@@ -31,12 +30,18 @@ class PayTest {
         )
 
         val gameState = GameState(
+            playerAtTurn = payerId,
+            winningPlayer = null,
+            drawPile = mutableListOf(),
+            discardPile = mutableListOf(),
             playerState = mutableMapOf(
                 payerId to payerState,
                 receiverId to receiverState
             ),
             playerOrder = listOf(payerId, receiverId),
-            playerAtTurn = payerId
+            cardsLeftToPlay = MAX_CARDS_PER_TURN,
+            pendingInteractions = Interactions(),
+            turnStarted = true
         )
 
         // 2. Attempt to pay with the wildcard
