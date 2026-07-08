@@ -1,5 +1,6 @@
 .gradle
 build/
+frontend/release/
 .DS_Store
 .env
 !gradle/wrapper/gradle-wrapper.jar

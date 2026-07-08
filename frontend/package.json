@@ -1,7 +1,7 @@
 {
   "name": "app",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Blockopoly desktop and web client",
   "main": "electron-main.cjs",
   "type": "module",
@@ -28,15 +28,18 @@
       "output": "release"
     },
     "mac": {
+      "icon": "resources/icon.icns",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
+      "icon": "resources/icon.ico",
       "target": "nsis"
     },
     "linux": {
+      "icon": "resources/icon.png",
       "target": [
         "AppImage"
       ]

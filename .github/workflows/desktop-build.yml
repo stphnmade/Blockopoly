@@ -11,14 +11,23 @@ permissions:
 
 jobs:
   package:
-    name: Package ${{ matrix.os }}
+    name: Package ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          - windows-latest
+        include:
+          - name: mac-arm64
+            os: macos-latest
+            builder_args: --mac --arm64
+          - name: mac-x64
+            os: macos-latest
+            builder_args: --mac --x64
+          - name: linux-x64
+            os: ubuntu-latest
+            builder_args: --linux --x64
+          - name: windows-x64
+            os: windows-latest
+            builder_args: --win --x64
     defaults:
       run:
         working-directory: frontend
@@ -30,10 +39,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm run build:desktop
+      - run: npm run build:web
+      - run: npx electron-builder ${{ matrix.builder_args }}
       - uses: actions/upload-artifact@v4
         with:
-          name: blockopoly-${{ matrix.os }}
+          name: blockopoly-${{ matrix.name }}
           path: |
             frontend/release/*.dmg
             frontend/release/*.zip
