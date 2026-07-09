@@ -17,17 +17,27 @@ jobs:
       matrix:
         include:
           - name: mac-arm64
-            os: macos-latest
+            os: macos-15
             builder_args: --mac --arm64
+            artifact_glob: |
+              frontend/release/Blockopoly-*-mac-arm64.dmg
+              frontend/release/Blockopoly-*-mac-arm64.zip
           - name: mac-x64
-            os: macos-latest
+            os: macos-15-intel
             builder_args: --mac --x64
+            artifact_glob: |
+              frontend/release/Blockopoly-*-mac-x64.dmg
+              frontend/release/Blockopoly-*-mac-x64.zip
           - name: linux-x64
             os: ubuntu-latest
             builder_args: --linux --x64
+            artifact_glob: |
+              frontend/release/*.AppImage
           - name: windows-x64
             os: windows-latest
             builder_args: --win --x64
+            artifact_glob: |
+              frontend/release/Blockopoly-*-win-x64.exe
     defaults:
       run:
         working-directory: frontend
@@ -40,20 +50,59 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build:web
+      - name: Configure macOS signing and notarization
+        if: startsWith(matrix.name, 'mac-')
+        shell: bash
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          missing=0
+          for name in MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required repository secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
+          apple_api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode > "$certificate_path"
+          printf '%s' "$APPLE_API_KEY" > "$apple_api_key_path"
+
+          {
+            echo "CSC_LINK=$certificate_path"
+            echo "CSC_KEY_PASSWORD=$MACOS_CERTIFICATE_PASSWORD"
+            echo "APPLE_API_KEY=$apple_api_key_path"
+            echo "APPLE_API_KEY_ID=$APPLE_API_KEY_ID"
+            echo "APPLE_API_ISSUER=$APPLE_API_ISSUER"
+          } >> "$GITHUB_ENV"
+      - run: rm -rf release
       - run: npx electron-builder ${{ matrix.builder_args }}
+      - name: Verify macOS signature
+        if: startsWith(matrix.name, 'mac-')
+        shell: bash
+        run: |
+          app_path="$(find release -maxdepth 3 -path '*/Blockopoly.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "::error::Packaged macOS app was not found"
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          spctl --assess --type execute --verbose=4 "$app_path"
       - uses: actions/upload-artifact@v4
         with:
           name: blockopoly-${{ matrix.name }}
-          path: |
-            frontend/release/*.dmg
-            frontend/release/*.zip
-            frontend/release/*.AppImage
-            frontend/release/Blockopoly-*-win-x64.exe
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: |
-            frontend/release/*.dmg
-            frontend/release/*.zip
-            frontend/release/*.AppImage
-            frontend/release/Blockopoly-*-win-x64.exe
+          files: ${{ matrix.artifact_glob }}

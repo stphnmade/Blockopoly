@@ -47,6 +47,24 @@ Expected formats:
 - Windows: `.exe` installer
 - Linux: `.AppImage`
 
+### macOS Architecture And Gatekeeper
+
+Apple Silicon users should install the `mac-arm64` asset. Intel users should install the `mac-x64` asset. Apple Silicon Macs can usually run x64 apps through Rosetta 2, but the native `arm64` package is the correct tester download and avoids Rosetta as a variable.
+
+macOS release builds must be Developer ID signed and notarized. If a downloaded app says it is damaged or cannot be opened, treat that as a signing/notarization failure unless the DMG itself is corrupted.
+
+The `Desktop Build` workflow expects these repository secrets for macOS jobs:
+
+```text
+MACOS_CERTIFICATE            # base64-encoded Developer ID Application .p12
+MACOS_CERTIFICATE_PASSWORD   # password for the .p12
+APPLE_API_KEY                # App Store Connect API key .p8 contents
+APPLE_API_KEY_ID             # key ID for the .p8 key
+APPLE_API_ISSUER             # issuer ID from App Store Connect
+```
+
+Without those secrets, macOS release jobs intentionally fail instead of publishing unsigned artifacts that testers cannot reliably open.
+
 ## AWS Host Role
 
 The t2 instance should become a runtime host, not the primary build machine.

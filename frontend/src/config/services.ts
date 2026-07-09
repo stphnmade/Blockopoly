@@ -13,6 +13,18 @@ const PUBLIC_SERVER = "https://playblockopoly.com";
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
+const isLocalHost = () => {
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+};
+
+const sameOriginService = (publicPath: string) => {
+  if (typeof window === "undefined") return undefined;
+  if (!/^https?:$/.test(window.location.protocol)) return undefined;
+  if (isLocalHost()) return undefined;
+  return `${window.location.origin}${publicPath}`;
+};
+
 const fromStorage = (key: string) => {
   if (typeof window === "undefined") return undefined;
 
@@ -37,6 +49,7 @@ const resolveServiceUrl = (
     runtimeValue ||
     fromStorage(storageKey) ||
     viteValue ||
+    sameOriginService(publicPath) ||
     (typeof window !== "undefined" && window.location.protocol === "file:"
       ? `${PUBLIC_SERVER}${publicPath}`
       : undefined) ||

@@ -1,7 +1,7 @@
 {
   "name": "app",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Blockopoly desktop and web client",
   "main": "electron-main.cjs",
   "type": "module",
@@ -13,6 +13,7 @@
     "electron-dev": "wait-on http://localhost:5173 && electron --no-sandbox electron-main.cjs",
     "build": "npm run build:desktop",
     "build:desktop": "vite build && electron-builder",
+    "build:desktop:unsigned": "vite build && electron-builder -c.mac.forceCodeSigning=false -c.mac.identity=null -c.mac.hardenedRuntime=false",
     "start": "electron electron-main.ts"
   },
   "build": {
@@ -29,6 +30,11 @@
     },
     "mac": {
       "icon": "resources/icon.icns",
+      "category": "public.app-category.games",
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
+      "hardenedRuntime": true,
+      "forceCodeSigning": true,
       "target": [
         "dmg",
         "zip"
