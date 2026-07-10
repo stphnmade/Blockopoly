@@ -16,6 +16,7 @@ import WinnerScreen from "./pages/WinnerScreen";
 import { AnimatePresence, motion } from "framer-motion";
 import { HowToPlay } from "./pages/HowToPlay";
 import { AboutBlockopoly } from "./pages/AboutBlockopoly";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
 /* ─── Animated wrapper with correct typing ─── */
 const AnimatedRoute: React.FC<{ children: React.ReactNode }> = ({
@@ -55,77 +56,79 @@ function App() {
       : Router;
 
   return (
-    <AppRouter>
-      {/* AnimatePresence outside Routes for page exit animation */}
-      <AnimatePresence mode="wait">
-        <Routes>
-          <Route path="/" element={<StartRoute />} />
+    <AppErrorBoundary>
+      <AppRouter>
+        {/* AnimatePresence outside Routes for page exit animation */}
+        <AnimatePresence mode="wait">
+          <Routes>
+            <Route path="/" element={<StartRoute />} />
 
-          <Route
-            path="/learn"
-            element={
-              <AnimatedRoute>
-                <HowToPlay />
-              </AnimatedRoute>
-            }
-          />
+            <Route
+              path="/learn"
+              element={
+                <AnimatedRoute>
+                  <HowToPlay />
+                </AnimatedRoute>
+              }
+            />
 
-          <Route
-            path="/about"
-            element={
-              <AnimatedRoute>
-                <AboutBlockopoly />
-              </AnimatedRoute>
-            }
-          />
+            <Route
+              path="/about"
+              element={
+                <AnimatedRoute>
+                  <AboutBlockopoly />
+                </AnimatedRoute>
+              }
+            />
 
-          <Route
-            path="/main"
-            element={
-              <AnimatedRoute>
-                <MainMenu />
-              </AnimatedRoute>
-            }
-          />
+            <Route
+              path="/main"
+              element={
+                <AnimatedRoute>
+                  <MainMenu />
+                </AnimatedRoute>
+              }
+            />
 
-          <Route
-            path="/lobby/:roomCode"
-            element={
-              <AnimatedRoute>
-                <Lobby />
-              </AnimatedRoute>
-            }
-          />
+            <Route
+              path="/lobby/:roomCode"
+              element={
+                <AnimatedRoute>
+                  <Lobby />
+                </AnimatedRoute>
+              }
+            />
 
-          <Route
-            path="/game/:joinId"
-            element={
-              <AnimatedRoute>
-                <PlayScreen />
-              </AnimatedRoute>
-            }
-          />
+            <Route
+              path="/game/:joinId"
+              element={
+                <AnimatedRoute>
+                  <PlayScreen />
+                </AnimatedRoute>
+              }
+            />
 
-          <Route
-            path="/play/:roomCode"
-            element={
-              <AnimatedRoute>
-                <PlayScreen />
-              </AnimatedRoute>
-            }
-          />
+            <Route
+              path="/play/:roomCode"
+              element={
+                <AnimatedRoute>
+                  <PlayScreen />
+                </AnimatedRoute>
+              }
+            />
 
-          <Route
-            path="/winner/:roomCode"
-            element={
-              <AnimatedRoute>
-                <WinnerScreen />
-              </AnimatedRoute>
-            }
-          />
-        </Routes>
-      </AnimatePresence>
-    </AppRouter>
+            <Route
+              path="/winner/:roomCode"
+              element={
+                <AnimatedRoute>
+                  <WinnerScreen />
+                </AnimatedRoute>
+              }
+            />
+          </Routes>
+        </AnimatePresence>
+      </AppRouter>
+    </AppErrorBoundary>
   );
 }
 

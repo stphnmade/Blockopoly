@@ -50,6 +50,7 @@ const Lobby: React.FC = () => {
   const [hostID, setHostID] = useState<string | null>(
     sessionStorage.getItem(HOST_ID_KEY) || null
   );
+  const [bootstrapChecked, setBootstrapChecked] = useState(false);
 
   const esRef = useRef<EventSource | null>(null);
   const closingSseRef = useRef(false);
@@ -68,10 +69,19 @@ const Lobby: React.FC = () => {
 
   // Bootstrap lobby state on reload if identity is missing
   useEffect(() => {
-    if (!roomCode) return;
-    if (myPID && myName && roomId) return;
+    if (!roomCode) {
+      setBootstrapChecked(true);
+      return;
+    }
+    if (myPID && myName && roomId) {
+      setBootstrapChecked(true);
+      return;
+    }
 
     const clientId = getClientId();
+    let cancelled = false;
+    setBootstrapChecked(false);
+
     (async () => {
       try {
         const res = await fetch(
@@ -88,6 +98,7 @@ const Lobby: React.FC = () => {
           playerId: string | null;
         } = await res.json();
 
+        if (cancelled) return;
         if (!data.playerId || !data.roomId) return;
 
         const player = data.players.find((p) => p.playerId === data.playerId);
@@ -112,18 +123,30 @@ const Lobby: React.FC = () => {
         }
       } catch (e) {
         console.error("[Lobby bootstrap] Failed to load room state", e);
+      } finally {
+        if (!cancelled) setBootstrapChecked(true);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
     // run once per roomCode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode]);
 
   useEffect(() => {
-    if (!myName || !roomCode) {
-      console.warn(
-        "Lobby: Missing myName or roomCode. Cannot establish SSE connection. Redirecting..."
-      );
+    if (!roomCode) {
       navigate("/");
+      return;
+    }
+
+    if (!myName || !myPID || !roomId) {
+      if (!bootstrapChecked) return;
+      console.warn(
+        "Lobby: Missing recovered identity. Returning to main menu."
+      );
+      navigate("/main");
       return;
     }
 
@@ -204,7 +227,7 @@ const Lobby: React.FC = () => {
       esRef.current?.close();
       esRef.current = null;
     };
-  }, [roomCode, myName, navigate, upsert, myPID]);
+  }, [roomCode, myName, navigate, upsert, myPID, roomId, bootstrapChecked]);
 
   useEffect(() => {
     if (hostID) {
@@ -245,6 +268,22 @@ const Lobby: React.FC = () => {
       : "The Host";
 
   const iAmHost = myPID && myPID === hostID;
+
+  if (!bootstrapChecked && (!myName || !myPID || !roomId)) {
+    return (
+      <div className="lobby-wrapper">
+        <div className="falling-bricks-wrapper">
+          <FallingBricks />
+        </div>
+        <div className="lobby">
+          <h2>Reconnecting room</h2>
+          <p>
+            Join&nbsp;Code:&nbsp;<b className="room-code-display">{roomCode}</b>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="lobby-wrapper">
