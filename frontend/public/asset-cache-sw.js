@@ -1,4 +1,5 @@
-const CACHE_NAME = "blockopoly-assets-v1";
+const CACHE_PREFIX = "blockopoly-assets-";
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const RUNTIME_ASSET_PATTERNS = [
   "/assets/",
   "/sfx/",
@@ -14,7 +15,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+            .map((key) => caches.delete(key))
+        )
       )
       .then(() => self.clients.claim())
   );
