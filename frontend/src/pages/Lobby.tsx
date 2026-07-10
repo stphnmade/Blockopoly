@@ -52,6 +52,7 @@ const Lobby: React.FC = () => {
   );
 
   const esRef = useRef<EventSource | null>(null);
+  const closingSseRef = useRef(false);
 
   const upsert = useCallback((list: Player[], p: Player): Player[] => {
     const i = list.findIndex((x) => x.playerId === p.playerId);
@@ -129,6 +130,7 @@ const Lobby: React.FC = () => {
     const url = buildSSEURL(roomCode, myName, myPID);
     console.log(`Lobby: Attempting to establish new SSE connection to: ${url}`);
 
+    closingSseRef.current = false;
     const es = new EventSource(url);
     esRef.current = es;
 
@@ -174,6 +176,7 @@ const Lobby: React.FC = () => {
         console.error("[SSE START] No room code available for navigation.");
         return;
       }
+      closingSseRef.current = true;
       navigate(`/play/${roomCode}`);
     };
 
@@ -188,13 +191,16 @@ const Lobby: React.FC = () => {
 
     es.onerror = (error) => {
       // IMPORTANT: don't close here — let EventSource auto-retry
-      console.error("[Lobby] SSE error (auto-retry will continue):", error);
+      if (!closingSseRef.current) {
+        console.error("[Lobby] SSE error (auto-retry will continue):", error);
+      }
     };
 
     return () => {
       console.log(
         "Lobby: Cleaning up SSE connection on unmount or effect re-run."
       );
+      closingSseRef.current = true;
       esRef.current?.close();
       esRef.current = null;
     };
