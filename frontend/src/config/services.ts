@@ -18,6 +18,27 @@ const isLocalHost = () => {
   return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 };
 
+const isLocalServiceUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    return ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const isPackagedDesktop = () =>
+  typeof window !== "undefined" && window.location.protocol === "file:";
+
+const productionService = (publicPath: string) =>
+  isPackagedDesktop() ? `${PUBLIC_SERVER}${publicPath}` : sameOriginService(publicPath);
+
+const productionSafe = (value: string | undefined) => {
+  if (!value) return undefined;
+  if (!isLocalHost() && isLocalServiceUrl(value)) return undefined;
+  return value;
+};
+
 const sameOriginService = (publicPath: string) => {
   if (typeof window === "undefined") return undefined;
   if (!/^https?:$/.test(window.location.protocol)) return undefined;
@@ -46,13 +67,10 @@ const resolveServiceUrl = (
   localFallback: string
 ) => {
   const configured =
-    runtimeValue ||
-    fromStorage(storageKey) ||
-    viteValue ||
-    sameOriginService(publicPath) ||
-    (typeof window !== "undefined" && window.location.protocol === "file:"
-      ? `${PUBLIC_SERVER}${publicPath}`
-      : undefined) ||
+    productionSafe(runtimeValue) ||
+    productionSafe(fromStorage(storageKey)) ||
+    productionSafe(viteValue) ||
+    productionService(publicPath) ||
     localFallback;
 
   return trimTrailingSlash(configured);
