@@ -6,7 +6,7 @@
   "main": "electron-main.cjs",
   "type": "module",
   "scripts": {
-    "build:web": "vite build && node scripts/create-legacy-assets.mjs",
+    "build:web": "vite build --base=/ && node scripts/create-legacy-assets.mjs",
     "dev": "concurrently \"vite --host\" \"npm run electron-dev\"",
     "dev:desktop": "concurrently \"vite --host\" \"npm run electron-dev\"",
     "dev:web": "vite --host",
