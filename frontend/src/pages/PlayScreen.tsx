@@ -21,7 +21,8 @@ import {
   HOST_ID_KEY,
 } from "../constants/constants";
 import "../style/PlayScreen.css";
-import { GAME_SERVICE_URL, toWebSocketUrl } from "../config/services";
+import { GAME_SERVICE_URL, ROOM_SERVICE_URL, toWebSocketUrl } from "../config/services";
+import { getClientId } from "../utils/clientId";
 import ChargeModal from "./play/components/ChargeModal";
 import DealBreakerModal from "./play/components/DealBreakerModal";
 import DealResponseModal from "./play/components/DealResponseModal";
@@ -189,19 +190,82 @@ const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
 
 type LobbyPlayer = { playerId?: string; id?: string; name?: string | null };
 
+const parseLobbyPlayers = (raw: string | null): LobbyPlayer[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+};
+
+const asCardArray = (value: unknown): ServerCard[] =>
+  Array.isArray(value) ? value.filter((card): card is ServerCard => !!card && typeof card === "object") : [];
+
+const normalizePlayerState = (value: unknown): ServerPlayerState => {
+  const state = value && typeof value === "object" ? (value as Partial<ServerPlayerState>) : {};
+  return {
+    hand: asCardArray(state.hand),
+    propertyCollection:
+      state.propertyCollection && typeof state.propertyCollection === "object"
+        ? state.propertyCollection
+        : {},
+    bank: asCardArray(state.bank),
+  };
+};
+
+const normalizeGameState = (snapshot: unknown): ServerGameState | null => {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const raw = snapshot as Partial<ServerGameState> & {
+    drawPile?: unknown[];
+    pendingInteractions?: unknown;
+  };
+  const playerState: Record<string, ServerPlayerState> = {};
+  if (raw.playerState && typeof raw.playerState === "object") {
+    Object.entries(raw.playerState).forEach(([pid, state]) => {
+      playerState[pid] = normalizePlayerState(state);
+    });
+  }
+  return {
+    playerAtTurn: typeof raw.playerAtTurn === "string" ? raw.playerAtTurn : null,
+    winningPlayer: typeof raw.winningPlayer === "string" ? raw.winningPlayer : null,
+    cardsLeftToPlay:
+      typeof raw.cardsLeftToPlay === "number" && Number.isFinite(raw.cardsLeftToPlay)
+        ? raw.cardsLeftToPlay
+        : 0,
+    playerOrder: Array.isArray(raw.playerOrder)
+      ? raw.playerOrder.filter((pid): pid is string => typeof pid === "string")
+      : [],
+    drawPileSize:
+      typeof raw.drawPileSize === "number" && Number.isFinite(raw.drawPileSize)
+        ? raw.drawPileSize
+        : Array.isArray(raw.drawPile)
+          ? raw.drawPile.length
+          : 0,
+    pendingInteractions:
+      raw.pendingInteractions && typeof raw.pendingInteractions === "object"
+        ? (raw.pendingInteractions as Record<string, unknown>)
+        : { pendingInteractions: [] },
+    playerState,
+    discardPile: asCardArray(raw.discardPile),
+  };
+};
+
 const PlayScreen: React.FC = () => {
-  const { roomCode = "" } = useParams();
+  const { roomCode: routeRoomCode = "", joinId = "" } = useParams();
+  const roomCode = routeRoomCode || joinId;
   const location = useLocation();
   const navigate = useNavigate();
 
-  const myName = (sessionStorage.getItem(NAME_KEY) || "").trim();
-  const myPID = sessionStorage.getItem(PLAYER_ID_KEY) || "";
-  const roomId = sessionStorage.getItem(ROOM_ID_KEY) || "";
-  const hostId = sessionStorage.getItem(HOST_ID_KEY) || "";
-
-  const playersRaw = sessionStorage.getItem(PLAYERS_KEY) ?? "[]";
+  const [myName, setMyName] = useState(() => (sessionStorage.getItem(NAME_KEY) || "").trim());
+  const [myPID, setMyPID] = useState(() => sessionStorage.getItem(PLAYER_ID_KEY) || "");
+  const [roomId, setRoomId] = useState(() => sessionStorage.getItem(ROOM_ID_KEY) || "");
+  const [hostId, setHostId] = useState(() => sessionStorage.getItem(HOST_ID_KEY) || "");
+  const [playersRaw, setPlayersRaw] = useState(() => sessionStorage.getItem(PLAYERS_KEY) ?? "[]");
+  const [bootstrapChecked, setBootstrapChecked] = useState(false);
   const lobbyPlayers = useMemo(
-    () => (JSON.parse(playersRaw) as LobbyPlayer[]).filter(Boolean),
+    () => parseLobbyPlayers(playersRaw),
     [playersRaw]
   );
   const nameById = useMemo(() => {
@@ -476,7 +540,9 @@ const PlayScreen: React.FC = () => {
 
   /** WS snapshot handling */
   const handleStateSnapshot = useCallback(
-    (snapshot: ServerGameState) => {
+    (rawSnapshot: unknown) => {
+      const snapshot = normalizeGameState(rawSnapshot);
+      if (!snapshot) return;
       setGame(snapshot);
       if (snapshot.playerAtTurn && latestTurnRef.current !== snapshot.playerAtTurn) {
         const hadPreviousTurn = latestTurnRef.current !== null;
@@ -540,8 +606,74 @@ const PlayScreen: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (!roomCode) {
+      setBootstrapChecked(true);
+      return;
+    }
+    if (roomId && myPID) {
+      setBootstrapChecked(true);
+      return;
+    }
+
+    const clientId = getClientId();
+    let cancelled = false;
+    setBootstrapChecked(false);
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `${ROOM_SERVICE_URL}/rooms/${encodeURIComponent(
+            roomCode
+          )}/state?clientId=${encodeURIComponent(clientId)}`
+        );
+        if (!res.ok) return;
+        const data: {
+          roomId?: string;
+          players?: LobbyPlayer[];
+          hostId?: string | null;
+          playerId?: string | null;
+        } = await res.json();
+        if (cancelled) return;
+        if (data.roomId) {
+          setRoomId(data.roomId);
+          sessionStorage.setItem(ROOM_ID_KEY, data.roomId);
+        }
+        if (data.playerId) {
+          setMyPID(data.playerId);
+          sessionStorage.setItem(PLAYER_ID_KEY, data.playerId);
+        }
+        if (data.hostId) {
+          setHostId(data.hostId);
+          sessionStorage.setItem(HOST_ID_KEY, data.hostId);
+        }
+        if (Array.isArray(data.players)) {
+          const playersJson = JSON.stringify(data.players);
+          setPlayersRaw(playersJson);
+          sessionStorage.setItem(PLAYERS_KEY, playersJson);
+          const recoveredName =
+            data.players.find((player) => (player.playerId ?? player.id) === data.playerId)
+              ?.name ?? null;
+          if (recoveredName) {
+            setMyName(recoveredName);
+            sessionStorage.setItem(NAME_KEY, recoveredName);
+          }
+        }
+      } catch (error) {
+        console.warn("[PlayScreen bootstrap] Failed to recover room state", error);
+      } finally {
+        if (!cancelled) setBootstrapChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [myPID, roomCode, roomId]);
+
   const connect = useCallback(() => {
     if (!roomId || !myPID) {
+      if (!bootstrapChecked) return;
       navigate("/");
       return;
     }
@@ -881,9 +1013,10 @@ const PlayScreen: React.FC = () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       reconnectTimer.current = setTimeout(() => connect(), delay);
     };
-  }, [roomId, myPID, wsUrl, navigate, handleStateSnapshot, formatActionLabel, pushToast, displayName, playActionSound, formatColor, handleDraw]);
+  }, [bootstrapChecked, roomId, myPID, wsUrl, navigate, handleStateSnapshot, formatActionLabel, pushToast, displayName, playActionSound, formatColor, handleDraw]);
 
   useEffect(() => {
+    if (!bootstrapChecked) return;
     shouldReconnectRef.current = true;
     connect();
     return () => {
@@ -892,7 +1025,7 @@ const PlayScreen: React.FC = () => {
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [connect]);
+  }, [bootstrapChecked, connect]);
 
   useEffect(() => {
     const uniqueCardAssets = Array.from(new Set(Object.values(cardAssetMap)));
@@ -1442,14 +1575,6 @@ const PlayScreen: React.FC = () => {
     if (!menuCard || !isMyTurn || playsLeft <= 0) return;
     if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "BIRTHDAY") return;
     wsSend({ type: "Birthday", id: menuCard.id });
-    setMenuCard(null);
-    setColorChoices(null);
-  }, [isMyTurn, menuCard, playsLeft, wsSend]);
-
-  const playDoubleRentSelected = useCallback(() => {
-    if (!menuCard || !isMyTurn || playsLeft <= 0) return;
-    if (menuCard.type !== "GENERAL_ACTION" || menuCard.actionType !== "DOUBLE_RENT") return;
-    wsSend({ type: "PlayDoubleRent", id: menuCard.id });
     setMenuCard(null);
     setColorChoices(null);
   }, [isMyTurn, menuCard, playsLeft, wsSend]);
@@ -2865,6 +2990,7 @@ const PlayScreen: React.FC = () => {
                   (card.type === "MONEY" ||
                     card.type === "PROPERTY" ||
                     card.type === "RENT_ACTION" ||
+                    card.type === "GENERAL_ACTION" ||
                     isPassGo);
                 return (
                   <DraggableCard
@@ -3223,10 +3349,10 @@ const PlayScreen: React.FC = () => {
                   className="bg-fuchsia-600 hover:bg-fuchsia-700 disabled:bg-gray-600 
                            text-white font-medium px-4 py-2 rounded-lg 
                            transition-colors duration-200 shadow-md"
-                  disabled={!isMyTurn || playsLeft <= 0}
-                  onClick={playDoubleRentSelected}
+                  disabled
+                  title="Select a Rent card and add Double The Rent from the rent dialog."
                 >
-                  Double The Rent
+                  Use with Rent
                 </button>
               )}
             {menuCard.type === "GENERAL_ACTION" &&
