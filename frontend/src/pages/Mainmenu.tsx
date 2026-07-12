@@ -35,7 +35,7 @@ const MainMenu: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [name, setName] = useState("");
   const [codeInput, setCodeInput] = useState(
-    () => (roomCode || searchParams.get("room") || "").toUpperCase()
+    () => roomCode || searchParams.get("room") || "",
   );
   const [error, setError] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
@@ -110,7 +110,7 @@ const MainMenu: React.FC = () => {
     lastActionRef.current = "join";
     const clientId = getClientId();
     const url = `${API}/joinRoom/${codeInput.toUpperCase()}/${encodeURIComponent(
-      name.trim()
+      name.trim(),
     )}?clientId=${encodeURIComponent(clientId)}`;
     openStream(url);
   };
@@ -124,7 +124,7 @@ const MainMenu: React.FC = () => {
     lastActionRef.current = "create";
     const clientId = getClientId();
     const url = `${API}/createRoom/${encodeURIComponent(
-      name.trim()
+      name.trim(),
     )}?clientId=${encodeURIComponent(clientId)}`;
     openStream(url);
   };
@@ -134,9 +134,7 @@ const MainMenu: React.FC = () => {
   useEffect(() => {
     const inviteCode = roomCode || searchParams.get("room") || "";
     if (inviteCode) {
-      setCodeInput(
-        inviteCode.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toUpperCase()
-      );
+      setCodeInput(inviteCode.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6));
       nameInputRef.current?.focus();
     }
   }, [roomCode, searchParams]);
@@ -164,7 +162,7 @@ const MainMenu: React.FC = () => {
           maxLength={6}
           onChange={(e) =>
             setCodeInput(
-              e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+              e.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6),
             )
           }
         />
@@ -177,7 +175,7 @@ const MainMenu: React.FC = () => {
             onClick={handleJoin}
             disabled={isConnecting || !isValidName || !isValidCode}
           >
-            {isValidCode ? `Join ${codeInput.toUpperCase()}` : "Join Room"}
+            {isValidCode ? `Join ${codeInput}` : "Join Room"}
           </button>
           <button
             className="secondary-button"
