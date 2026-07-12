@@ -447,9 +447,9 @@ export const TutorialRoom: React.FC = () => {
       const nextRects = {
         bank: readRect(playerBank, 12),
         estate: readRect(greenSet ?? propertyCollection, 14),
-        "completed-set": readRect(greenSet, 14),
-        "opponent-complete": readRect(yellowSet, 14),
-        "opponent-property": readRect(brownSet, 14),
+        "completed-set": readRect(greenSet ?? null, 14),
+        "opponent-complete": readRect(yellowSet ?? null, 14),
+        "opponent-property": readRect(brownSet ?? null, 14),
       };
       setZoneRects(nextRects);
     };
