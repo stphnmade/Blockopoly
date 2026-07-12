@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "../style/Mainmenu.css";
 import FallingBricks from "../components/FallingBricks";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   NAME_KEY,
   PLAYER_ID_KEY,
@@ -11,6 +11,8 @@ import {
 } from "../constants/constants.ts";
 import { getClientId } from "../utils/clientId";
 import { ROOM_SERVICE_URL } from "../config/services";
+import { LoadingSplash } from "../components/LoadingSplash";
+import logo from "../assets/Blockopoly-logo.svg";
 
 const API = ROOM_SERVICE_URL;
 
@@ -29,12 +31,18 @@ export interface Player {
 
 const MainMenu: React.FC = () => {
   sessionStorage.removeItem(PLAYER_ID_KEY);
+  const { roomCode } = useParams();
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState("");
-  const [codeInput, setCodeInput] = useState("");
+  const [codeInput, setCodeInput] = useState(
+    () => (roomCode || searchParams.get("room") || "").toUpperCase()
+  );
   const [error, setError] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
   const navigate = useNavigate();
 
   const esRef = useRef<EventSource | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const navigatedRef = useRef(false);
   const lastActionRef = useRef<"join" | "create" | null>(null);
 
@@ -55,6 +63,7 @@ const MainMenu: React.FC = () => {
   const openStream = (url: string) => {
     esRef.current?.close();
     console.log("[SSE] open", url);
+    setIsConnecting(true);
 
     const es = new EventSource(url);
     esRef.current = es;
@@ -68,6 +77,7 @@ const MainMenu: React.FC = () => {
 
         if (!payload.roomCode || !payload.playerId) {
           setError("Server response malformed.");
+          setIsConnecting(false);
           return;
         }
 
@@ -87,6 +97,7 @@ const MainMenu: React.FC = () => {
       } else {
         setError("Lost connection to server.");
       }
+      setIsConnecting(false);
     };
   };
 
@@ -98,7 +109,7 @@ const MainMenu: React.FC = () => {
     }
     lastActionRef.current = "join";
     const clientId = getClientId();
-    const url = `${API}/joinRoom/${codeInput}/${encodeURIComponent(
+    const url = `${API}/joinRoom/${codeInput.toUpperCase()}/${encodeURIComponent(
       name.trim()
     )}?clientId=${encodeURIComponent(clientId)}`;
     openStream(url);
@@ -120,12 +131,25 @@ const MainMenu: React.FC = () => {
 
   useEffect(() => () => esRef.current?.close(), []);
 
+  useEffect(() => {
+    const inviteCode = roomCode || searchParams.get("room") || "";
+    if (inviteCode) {
+      setCodeInput(
+        inviteCode.replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toUpperCase()
+      );
+      nameInputRef.current?.focus();
+    }
+  }, [roomCode, searchParams]);
+
   return (
     <div className="main-menu">
       <div className="form-container">
+        {isConnecting && <LoadingSplash inline label="Joining room" />}
+        <img className="main-menu-logo" src={logo} alt="Blockopoly logo" />
         <h2>Welcome to Blockopoly</h2>
 
         <input
+          ref={nameInputRef}
           className="name-input"
           placeholder="Enter your name"
           value={name}
@@ -139,7 +163,9 @@ const MainMenu: React.FC = () => {
           value={codeInput}
           maxLength={6}
           onChange={(e) =>
-            setCodeInput(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))
+            setCodeInput(
+              e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()
+            )
           }
         />
 
@@ -149,14 +175,14 @@ const MainMenu: React.FC = () => {
           <button
             className="primary-button"
             onClick={handleJoin}
-            disabled={!isValidName || !isValidCode}
+            disabled={isConnecting || !isValidName || !isValidCode}
           >
-            Join Room
+            {isValidCode ? `Join ${codeInput.toUpperCase()}` : "Join Room"}
           </button>
           <button
             className="secondary-button"
             onClick={handleCreate}
-            disabled={!isValidName}
+            disabled={isConnecting || !isValidName}
           >
             Create Room
           </button>

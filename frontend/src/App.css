@@ -44,33 +44,3 @@
 .read-the-docs {
   color: #888;
 }
-
-.splash-screen {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  font-size: 1rem;
-  background-color: #fdf6e3;
-  color: #ffffff;
-  text-shadow: 0 0 12px #ff8800;
-}
-
-.splash-text {
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 0.5;
-    transform: scale(0.98);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0.5;
-    transform: scale(0.98);
-  }
-}

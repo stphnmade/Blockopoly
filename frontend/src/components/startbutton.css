@@ -3,7 +3,7 @@
   display: inline-block;
 }
 
-.primary-button {
+.start-primary-button {
   padding: 1rem 2rem;
   font-size: 1.5rem;
   font-weight: bold;
@@ -18,13 +18,13 @@
   overflow: hidden;
 }
 
-.primary-button:hover {
+.start-primary-button:hover {
   transform: translateY(-1px);
   background: #bfdbfe;
   box-shadow: 0 5px 14px rgba(15, 23, 42, 0.22);
 }
 
-.primary-button:active {
+.start-primary-button:active {
   animation: pulse 0.3s ease;
 }
 

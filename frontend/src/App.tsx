@@ -1,5 +1,5 @@
 // src/App.tsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
   HashRouter,
@@ -16,7 +16,9 @@ import WinnerScreen from "./pages/WinnerScreen";
 import { AnimatePresence, motion } from "framer-motion";
 import { HowToPlay } from "./pages/HowToPlay";
 import { AboutBlockopoly } from "./pages/AboutBlockopoly";
+import { TutorialRoom } from "./pages/TutorialRoom";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { LoadingSplash } from "./components/LoadingSplash";
 
 /* ─── Animated wrapper with correct typing ─── */
 const AnimatedRoute: React.FC<{ children: React.ReactNode }> = ({
@@ -44,19 +46,27 @@ const StartRoute: React.FC = () => {
         onStart={() => navigate("/main")}
         onLearn={() => navigate("/learn")}
         onAbout={() => navigate("/about")}
+        onTutorial={() => navigate("/tutorial")}
       />
     </AnimatedRoute>
   );
 };
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const AppRouter =
     typeof window !== "undefined" && window.location.protocol === "file:"
       ? HashRouter
       : Router;
 
+  useEffect(() => {
+    const splashTimer = window.setTimeout(() => setShowSplash(false), 1250);
+    return () => window.clearTimeout(splashTimer);
+  }, []);
+
   return (
     <AppErrorBoundary>
+      {showSplash && <LoadingSplash />}
       <AppRouter>
         {/* AnimatePresence outside Routes for page exit animation */}
         <AnimatePresence mode="wait">
@@ -82,7 +92,25 @@ function App() {
             />
 
             <Route
+              path="/tutorial"
+              element={
+                <AnimatedRoute>
+                  <TutorialRoom />
+                </AnimatedRoute>
+              }
+            />
+
+            <Route
               path="/main"
+              element={
+                <AnimatedRoute>
+                  <MainMenu />
+                </AnimatedRoute>
+              }
+            />
+
+            <Route
+              path="/join/:roomCode"
               element={
                 <AnimatedRoute>
                   <MainMenu />

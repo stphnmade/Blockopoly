@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import FallingBricks from "../components/FallingBricks";
 import "../style/Lobby.css";
 import type { Player } from "./Mainmenu.tsx";
+import { LoadingSplash } from "../components/LoadingSplash";
 import {
   NAME_KEY,
   PLAYER_ID_KEY,
@@ -51,6 +52,9 @@ const Lobby: React.FC = () => {
     sessionStorage.getItem(HOST_ID_KEY) || null
   );
   const [bootstrapChecked, setBootstrapChecked] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState<"link" | "code" | null>(
+    null
+  );
 
   const esRef = useRef<EventSource | null>(null);
   const closingSseRef = useRef(false);
@@ -269,17 +273,46 @@ const Lobby: React.FC = () => {
 
   const iAmHost = myPID && myPID === hostID;
 
+  const inviteLink = (() => {
+    if (typeof window === "undefined") return "";
+    const code = encodeURIComponent(roomCode);
+    if (window.location.protocol === "file:") {
+      return `https://playblockopoly.com/join/${code}`;
+    }
+    return `${window.location.origin}/join/${code}`;
+  })();
+
+  const copyText = async (value: string, type: "link" | "code") => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+      }
+      setCopiedInvite(type);
+      window.setTimeout(() => setCopiedInvite(null), 1500);
+    } catch (err) {
+      console.error("[Lobby] Could not copy invite", err);
+      setCopiedInvite(null);
+    }
+  };
+
   if (!bootstrapChecked && (!myName || !myPID || !roomId)) {
     return (
       <div className="lobby-wrapper">
         <div className="falling-bricks-wrapper">
           <FallingBricks />
         </div>
-        <div className="lobby">
-          <h2>Reconnecting room</h2>
-          <p>
-            Join&nbsp;Code:&nbsp;<b className="room-code-display">{roomCode}</b>
-          </p>
+        <div className="lobby reconnecting">
+          <LoadingSplash inline label="Reconnecting room" />
         </div>
       </div>
     );
@@ -293,9 +326,26 @@ const Lobby: React.FC = () => {
 
       <div className="lobby">
         <h2>{hostName}&apos;s Room</h2>
-        <p>
-          Join&nbsp;Code:&nbsp;<b className="room-code-display">{roomCode}</b>
-        </p>
+        <div className="invite-panel" aria-label="Invite players">
+          <div className="invite-code-row">
+            <span>Join Code</span>
+            <b className="room-code-display">{roomCode}</b>
+            <button
+              type="button"
+              className="copy-code-button"
+              onClick={() => copyText(roomCode, "code")}
+            >
+              {copiedInvite === "code" ? "Copied" : "Copy Code"}
+            </button>
+          </div>
+          <button
+            type="button"
+            className="copy-link-button"
+            onClick={() => copyText(inviteLink, "link")}
+          >
+            {copiedInvite === "link" ? "Invite Link Copied" : "Copy Invite Link"}
+          </button>
+        </div>
 
         <h3>{players.length}/5 players</h3>
         <ol className="player-list">

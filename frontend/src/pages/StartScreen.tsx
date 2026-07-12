@@ -9,9 +9,15 @@ type Props = {
   onStart: () => void; // parent decides where to go
   onLearn?: () => void;
   onAbout?: () => void;
+  onTutorial?: () => void;
 };
 
-export const StartScreen: React.FC<Props> = ({ onStart, onLearn, onAbout }) => {
+export const StartScreen: React.FC<Props> = ({
+  onStart,
+  onLearn,
+  onAbout,
+  onTutorial,
+}) => {
   const handleClick = () => {
     new Audio(clickSound).play();
 
@@ -30,6 +36,13 @@ export const StartScreen: React.FC<Props> = ({ onStart, onLearn, onAbout }) => {
       <div className="div">
         <img className="blockopoly-logo" alt="Blockopoly logo" src={logo} />
         <PrimaryButton onClick={handleClick} />
+        <button
+          type="button"
+          className="learn-button"
+          onClick={() => onTutorial && onTutorial()}
+        >
+          Tutorial Room
+        </button>
         <button
           type="button"
           className="learn-button"

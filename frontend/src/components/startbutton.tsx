@@ -18,7 +18,7 @@ export const PrimaryButton: React.FC<Props> = ({ onClick }) => {
   return (
     <div className="button-container">
       <button
-        className={`primary-button ${explode ? "explode" : ""}`}
+        className={`start-primary-button ${explode ? "explode" : ""}`}
         onClick={handleClick}
       >
         Click to Start
