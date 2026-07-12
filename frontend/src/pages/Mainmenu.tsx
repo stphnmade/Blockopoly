@@ -109,9 +109,11 @@ const MainMenu: React.FC = () => {
     }
     lastActionRef.current = "join";
     const clientId = getClientId();
-    const url = `${API}/joinRoom/${codeInput.toUpperCase()}/${encodeURIComponent(
-      name.trim(),
-    )}?clientId=${encodeURIComponent(clientId)}`;
+    const url = `${API}/joinRoom/${encodeURIComponent(
+      codeInput,
+    )}/${encodeURIComponent(name.trim())}?clientId=${encodeURIComponent(
+      clientId,
+    )}`;
     openStream(url);
   };
 
