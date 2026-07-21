@@ -39,7 +39,7 @@ body,
   position: absolute;
   z-index: 18;
   box-sizing: border-box;
-  pointer-events: auto;
+  pointer-events: none;
   border: 2px dashed rgba(14, 165, 233, 0.88);
   background: rgba(14, 165, 233, 0.12);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18) inset;
@@ -52,6 +52,24 @@ body,
 
 .game-drop-zone.valid {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.game-drop-zone::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .game-drop-zone.over {
@@ -64,8 +82,14 @@ body,
   border-radius: 10px;
 }
 
-.game-drop-zone.zone-property-area {
+.game-drop-zone.zone-property-area,
+.game-drop-zone.zone-action-area {
   border-radius: 8px;
+}
+
+.game-drop-zone.zone-action-area {
+  border-color: rgba(249, 115, 22, 0.92);
+  background: rgba(249, 115, 22, 0.12);
 }
 
 .drag-overlay-card {

@@ -27,7 +27,8 @@
 .playing-mat-outline-2-players .center-pile {
   grid-area: center;
   align-self: stretch;
-  height: 100%;
+  top: auto;
+  height: auto;
   min-height: 0;
 }
 

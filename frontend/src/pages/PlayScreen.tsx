@@ -60,7 +60,7 @@ import type {
 } from "./play/types";
 import { PRELOAD_SFX, SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soundBoard";
 
-type GameDropZone = "bank" | "property-area";
+type GameDropZone = "bank" | "property-area" | "action-area";
 type DropRect = { left: number; top: number; width: number; height: number };
 
 import { cardAssetMap } from "../utils/cardmapping";
@@ -182,23 +182,47 @@ const NEW_PROPERTY_SET_ID = "NEW_SET";
 const WS_DEBUG = import.meta.env.VITE_DEBUG_WS === "true";
 const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
 
+const ACTION_DROP_TYPES = new Set([
+  "PASS_GO",
+  "BIRTHDAY",
+  "DEBT_COLLECTOR",
+  "SLY_DEAL",
+  "FORCED_DEAL",
+  "DEAL_BREAKER",
+]);
+
+const isValidDrop = (zone: GameDropZone, card: ServerCard | null) => {
+  if (!card) return false;
+  if (zone === "bank") {
+    return card.type === "MONEY" || card.type === "RENT_ACTION" || card.type === "GENERAL_ACTION";
+  }
+  if (zone === "property-area") {
+    return (
+      card.type === "PROPERTY" ||
+      (card.type === "GENERAL_ACTION" && ["HOUSE", "HOTEL"].includes(card.actionType ?? ""))
+    );
+  }
+  return (
+    card.type === "RENT_ACTION" ||
+    (card.type === "GENERAL_ACTION" && ACTION_DROP_TYPES.has(card.actionType ?? ""))
+  );
+};
+
 const GameDropTarget: React.FC<{
   zone: GameDropZone;
   rect?: DropRect;
   activeCard: ServerCard | null;
 }> = ({ zone, rect, activeCard }) => {
-  const { isOver, setNodeRef } = useDroppable({ id: zone });
+  const valid = isValidDrop(zone, activeCard);
+  const { isOver, setNodeRef } = useDroppable({ id: zone, disabled: !valid });
   if (!rect || !activeCard) return null;
-  const valid =
+
+  const label =
     zone === "bank"
-      ? activeCard.type === "MONEY" ||
-        activeCard.type === "RENT_ACTION" ||
-        activeCard.type === "GENERAL_ACTION"
-      : activeCard.type === "PROPERTY" ||
-        (activeCard.type === "GENERAL_ACTION" &&
-          ["HOUSE", "HOTEL", "SLY_DEAL", "FORCED_DEAL", "DEAL_BREAKER"].includes(
-            activeCard.actionType ?? ""
-          ));
+      ? "Bank card"
+      : zone === "property-area"
+        ? "Play property or building"
+        : "Play action";
 
   return (
     <div
@@ -212,7 +236,8 @@ const GameDropTarget: React.FC<{
         width: rect.width,
         height: rect.height,
       }}
-      aria-label={`${zone} drag target`}
+      data-label={label}
+      aria-label={`${label} drag target`}
     />
   );
 };
@@ -452,7 +477,7 @@ const PlayScreen: React.FC = () => {
   const playAreaRef = useRef<HTMLDivElement | null>(null);
   const dndSensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 12 },
     })
   );
 
@@ -498,6 +523,22 @@ const PlayScreen: React.FC = () => {
         height: box.height + pad * 2,
       };
     };
+    const readActionRect = (
+      playerSpace: Element | null,
+      propertyArea: Element | null
+    ): DropRect | undefined => {
+      if (!playerSpace || !propertyArea) return undefined;
+      const rootBox = root.getBoundingClientRect();
+      const playerBox = playerSpace.getBoundingClientRect();
+      const propertyBox = propertyArea.getBoundingClientRect();
+      const height = Math.min(140, Math.max(96, rootBox.height * 0.13));
+      return {
+        left: Math.max(12, propertyBox.left - rootBox.left - 24),
+        top: Math.max(12, playerBox.top - rootBox.top - height - 18),
+        width: Math.min(rootBox.width - 24, propertyBox.width + 48),
+        height,
+      };
+    };
     const measure = () => {
       const ownName = displayName(myPID);
       const bank = Array.from(root.querySelectorAll<HTMLElement>("[aria-label$=' bank']")).find(
@@ -506,10 +547,12 @@ const PlayScreen: React.FC = () => {
       const properties = Array.from(
         root.querySelectorAll<HTMLElement>("[aria-label$=' property collection']")
       ).find((node) => node.getAttribute("aria-label") === `${ownName} property collection`);
+      const playerSpace = bank?.closest(".player-space") ?? null;
 
       setDropRects({
         bank: readRect(bank ?? null, 10),
         "property-area": readRect(properties ?? null, 12),
+        "action-area": readActionRect(playerSpace, properties ?? null),
       });
     };
     const schedule = () => {
@@ -940,6 +983,26 @@ const PlayScreen: React.FC = () => {
               kind: "RENT",
             });
           }
+          return;
+        }
+        if ((msg as any).type === "PAYMENT_EARNINGS") {
+          const payload = msg as any;
+          const receiver = payload.receiver as string | undefined;
+          const giver = payload.giver as string | undefined;
+          const bankCards = Array.isArray(payload.bankCards) ? payload.bankCards : [];
+          const propertyCards =
+            payload.propertyToDestination && typeof payload.propertyToDestination === "object"
+              ? Object.keys(payload.propertyToDestination)
+              : [];
+          const cardCount = bankCards.length + propertyCards.length;
+          const cardLabel = `${cardCount} ${cardCount === 1 ? "card" : "cards"}`;
+          const message =
+            giver === myPID
+              ? `You paid ${displayName(receiver)} with ${cardLabel}.`
+              : receiver === myPID
+                ? `${displayName(giver)} paid you with ${cardLabel}.`
+                : `${displayName(giver)} paid ${displayName(receiver)} with ${cardLabel}.`;
+          pushToast(message, "info");
           return;
         }
         if ((msg as any).type === "ACTION_INVALID") {
@@ -2220,37 +2283,28 @@ const PlayScreen: React.FC = () => {
           playPropertyCardFromDrop(card);
           return;
         }
+        if (
+          card.type === "GENERAL_ACTION" &&
+          (card.actionType === "HOUSE" || card.actionType === "HOTEL")
+        ) {
+          openDevelopmentMenu(card);
+        }
+        return;
+      }
+
+      if (zone === "action-area") {
         if (card.type === "RENT_ACTION") {
           openRentMenu(card);
           return;
         }
         if (card.type !== "GENERAL_ACTION") return;
         switch (card.actionType) {
-          case "PASS_GO":
-            wsSend({ type: "PassGo", id: card.id });
-            return;
-          case "BIRTHDAY":
-            wsSend({ type: "Birthday", id: card.id });
-            return;
-          case "DEBT_COLLECTOR":
-            openDebtCollectorMenu(card);
-            return;
-          case "SLY_DEAL":
-            openSlyDealMenu(card);
-            return;
-          case "FORCED_DEAL":
-            openForcedDealMenu(card);
-            return;
-          case "DEAL_BREAKER":
-            openDealBreakerMenu(card);
-            return;
-          case "HOUSE":
-          case "HOTEL":
-            openDevelopmentMenu(card);
-            return;
-          default:
-            setMenuCard(card);
-            setColorChoices(null);
+          case "PASS_GO": wsSend({ type: "PassGo", id: card.id }); return;
+          case "BIRTHDAY": wsSend({ type: "Birthday", id: card.id }); return;
+          case "DEBT_COLLECTOR": openDebtCollectorMenu(card); return;
+          case "SLY_DEAL": openSlyDealMenu(card); return;
+          case "FORCED_DEAL": openForcedDealMenu(card); return;
+          case "DEAL_BREAKER": openDealBreakerMenu(card); return;
         }
       }
     },
@@ -3194,6 +3248,11 @@ const PlayScreen: React.FC = () => {
             <GameDropTarget
               zone="property-area"
               rect={dropRects["property-area"]}
+              activeCard={activeDragCard}
+            />
+            <GameDropTarget
+              zone="action-area"
+              rect={dropRects["action-area"]}
               activeCard={activeDragCard}
             />
           </>
