@@ -1,4 +1,5 @@
 import React from "react";
+import logo from "../assets/Blockopoly-logo.svg";
 import "./LoadingSplash.css";
 
 type LoadingSplashProps = {
@@ -16,7 +17,7 @@ export const LoadingSplash: React.FC<LoadingSplashProps> = ({
     aria-live="polite"
   >
     <div className="loading-splash-mark">
-      <img src="/favicon.ico" alt="Blockopoly logo" />
+      <img src={logo} alt="Blockopoly" />
     </div>
     <div className="loading-splash-label">{label}</div>
   </div>

@@ -35,6 +35,45 @@ body,
   height: 100%;
 }
 
+.game-drop-zone {
+  position: absolute;
+  z-index: 18;
+  box-sizing: border-box;
+  pointer-events: auto;
+  border: 2px dashed rgba(14, 165, 233, 0.88);
+  background: rgba(14, 165, 233, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+
+.game-drop-zone.valid {
+  opacity: 1;
+}
+
+.game-drop-zone.over {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.95);
+  transform: scale(1.015);
+}
+
+.game-drop-zone.zone-bank {
+  border-radius: 10px;
+}
+
+.game-drop-zone.zone-property-area {
+  border-radius: 8px;
+}
+
+.drag-overlay-card {
+  pointer-events: none;
+  transform: rotate(4deg) scale(1.05);
+  box-shadow: 0 18px 32px rgba(0, 0, 0, 0.38);
+}
+
 .plays-left-alert {
   color: #fecaca;
   text-shadow: 0 0 10px rgba(248, 113, 113, 0.8);
@@ -229,7 +268,8 @@ body,
 }
 
 .topbar-primary,
-.topbar-log-button {
+.topbar-log-button,
+.topbar-icon-button {
   min-height: 34px;
   display: inline-flex;
   align-items: center;
@@ -364,6 +404,14 @@ body,
 }
 
 .topbar-log-button {
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.topbar-icon-button {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 8px;
   background: rgba(15, 23, 42, 0.62);
 }
 
@@ -511,6 +559,43 @@ body,
   border-radius: 8px;
   user-select: none;
   pointer-events: none;
+}
+
+.hand-card-options {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #fff;
+  font: 800 17px / 1 system-ui, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, background-color 140ms ease;
+}
+
+.hand-card:hover .hand-card-options,
+.hand-card:focus-within .hand-card-options {
+  opacity: 1;
+}
+
+.hand-card-options:hover,
+.hand-card-options:focus-visible {
+  background: rgba(37, 99, 235, 0.95);
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .hand-card-options {
+    opacity: 1;
+  }
 }
 
 .hand-card:hover {
@@ -1055,6 +1140,88 @@ body,
 
 .activity-log-empty {
   color: #94a3b8;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.settings-modal {
+  width: min(420px, 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(15, 23, 42, 0.96);
+  color: #f8fafc;
+  padding: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+.settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.settings-title {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.settings-subtitle,
+.settings-toggle-row small,
+.settings-note {
+  color: #cbd5e1;
+}
+
+.settings-subtitle {
+  margin-top: 3px;
+  font-size: 0.78rem;
+}
+
+.settings-close {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  padding: 7px 10px;
+  background: rgba(30, 41, 59, 0.86);
+  color: #f8fafc;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.settings-toggle-row span {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-toggle-row input {
+  width: 22px;
+  height: 22px;
+  accent-color: #22c55e;
+}
+
+.settings-note {
+  margin-top: 12px;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .toast-stack {

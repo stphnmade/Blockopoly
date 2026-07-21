@@ -7,12 +7,25 @@ import React, {
   lazy,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { TbZoomInArea } from "react-icons/tb";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { TbSettings, TbZoomInArea } from "react-icons/tb";
 import {
   PLAYERS_KEY,
   PLAYER_ID_KEY,
@@ -47,7 +60,8 @@ import type {
 } from "./play/types";
 import { PRELOAD_SFX, SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soundBoard";
 
-// Drag-and-drop removed: using click/menu interactions only
+type GameDropZone = "bank" | "property-area";
+type DropRect = { left: number; top: number; width: number; height: number };
 
 import { cardAssetMap } from "../utils/cardmapping";
 const cardBack = new URL("../assets/cards/card-back.svg", import.meta.url).href;
@@ -168,22 +182,91 @@ const NEW_PROPERTY_SET_ID = "NEW_SET";
 const WS_DEBUG = import.meta.env.VITE_DEBUG_WS === "true";
 const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
 
-/** Click-only hand card (drag removed) */
-  const DraggableCard: React.FC<{
-  card: ServerCard;
-  canDrag: boolean; // kept prop name for compatibility
-  onClick: () => void;
-}> = ({ card, canDrag, onClick }) => {
+const GameDropTarget: React.FC<{
+  zone: GameDropZone;
+  rect?: DropRect;
+  activeCard: ServerCard | null;
+}> = ({ zone, rect, activeCard }) => {
+  const { isOver, setNodeRef } = useDroppable({ id: zone });
+  if (!rect || !activeCard) return null;
+  const valid =
+    zone === "bank"
+      ? activeCard.type === "MONEY" ||
+        activeCard.type === "RENT_ACTION" ||
+        activeCard.type === "GENERAL_ACTION"
+      : activeCard.type === "PROPERTY" ||
+        (activeCard.type === "GENERAL_ACTION" &&
+          ["HOUSE", "HOTEL", "SLY_DEAL", "FORCED_DEAL", "DEAL_BREAKER"].includes(
+            activeCard.actionType ?? ""
+          ));
+
   return (
     <div
-      className={`hand-card ${canDrag ? "clickable" : ""}`}
+      ref={setNodeRef}
+      className={`game-drop-zone zone-${zone} ${valid ? "valid" : ""} ${
+        isOver ? "over" : ""
+      }`}
+      style={{
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      }}
+      aria-label={`${zone} drag target`}
+    />
+  );
+};
+
+const DraggableCard: React.FC<{
+  card: ServerCard;
+  canDrag: boolean;
+  dragEnabled: boolean;
+  onClick: () => void;
+  onOptions: () => void;
+}> = ({ card, canDrag, dragEnabled, onClick, onOptions }) => {
+  const draggable = dragEnabled && canDrag;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `hand:${card.id}`,
+    data: { card },
+    disabled: !draggable,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`hand-card ${canDrag ? "clickable" : ""} ${
+        draggable ? "draggable" : ""
+      } ${isDragging ? "dragging" : ""}`}
+      style={
+        transform
+          ? {
+              transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+            }
+          : undefined
+      }
       onClick={(e) => {
         e.preventDefault();
         onClick();
       }}
+      {...(draggable ? listeners : {})}
+      {...(draggable ? attributes : {})}
       title={`${card.type}${card.actionType ? `: ${card.actionType}` : ""}`}
     >
       <img src={assetForCard(card)} alt={card.type} draggable={false} />
+      <button
+        type="button"
+        className="hand-card-options"
+        aria-label="Show card options"
+        title="Card options"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onOptions();
+        }}
+      >
+        ⋯
+      </button>
     </div>
   );
 };
@@ -339,7 +422,13 @@ const PlayScreen: React.FC = () => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityEntry[]>([]);
   const [showActivityLog, setShowActivityLog] = useState(false);
-  // activeCard state removed with drag/drop
+  const [showSettings, setShowSettings] = useState(false);
+  const [dragDropEnabled, setDragDropEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("BLOCKOPOLY_DND_ENABLED") !== "false";
+  });
+  const [activeDragCard, setActiveDragCard] = useState<ServerCard | null>(null);
+  const [dropRects, setDropRects] = useState<Partial<Record<GameDropZone, DropRect>>>({});
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
   const [isSubmittingCharge, setIsSubmittingCharge] = useState(false);
@@ -360,6 +449,12 @@ const PlayScreen: React.FC = () => {
   const latestTurnRef = useRef<string | null>(null);
   const sfxPoolRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const sfxFadeTimersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const playAreaRef = useRef<HTMLDivElement | null>(null);
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  );
 
   const wsUrl = useMemo(
     () =>
@@ -375,6 +470,66 @@ const PlayScreen: React.FC = () => {
     ws.send(JSON.stringify(action));
   }, []);
   const restartRequestedRef = useRef(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "BLOCKOPOLY_DND_ENABLED",
+      dragDropEnabled ? "true" : "false"
+    );
+  }, [dragDropEnabled]);
+
+  useLayoutEffect(() => {
+    if (!dragDropEnabled) {
+      setDropRects({});
+      return;
+    }
+    const root = playAreaRef.current;
+    if (!root) return;
+
+    let frame = 0;
+    const readRect = (element: Element | null, pad: number): DropRect | undefined => {
+      if (!element) return undefined;
+      const rootBox = root.getBoundingClientRect();
+      const box = element.getBoundingClientRect();
+      return {
+        left: Math.max(0, box.left - rootBox.left - pad),
+        top: Math.max(0, box.top - rootBox.top - pad),
+        width: box.width + pad * 2,
+        height: box.height + pad * 2,
+      };
+    };
+    const measure = () => {
+      const ownName = displayName(myPID);
+      const bank = Array.from(root.querySelectorAll<HTMLElement>("[aria-label$=' bank']")).find(
+        (node) => node.getAttribute("aria-label") === `${ownName} bank`
+      );
+      const properties = Array.from(
+        root.querySelectorAll<HTMLElement>("[aria-label$=' property collection']")
+      ).find((node) => node.getAttribute("aria-label") === `${ownName} property collection`);
+
+      setDropRects({
+        bank: readRect(bank ?? null, 10),
+        "property-area": readRect(properties ?? null, 12),
+      });
+    };
+    const schedule = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measure);
+    };
+
+    schedule();
+    const resizeObserver = new ResizeObserver(schedule);
+    resizeObserver.observe(root);
+    window.addEventListener("resize", schedule);
+    const timeout = window.setTimeout(schedule, 180);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", schedule);
+    };
+  }, [displayName, dragDropEnabled, game, handExpanded, myPID]);
 
   // Heartbeat: send a PING action every ROOM_HEARTBEAT_INTERVAL_MS while connected.
   useEffect(() => {
@@ -1512,8 +1667,8 @@ const PlayScreen: React.FC = () => {
       ? forcedReceiveColor ?? getDefaultReceiveColor(forcedTargetEntry.card, forcedTargetEntry.setColor)
       : getDefaultReceiveColor(forcedTargetEntry.card, forcedTargetEntry.setColor)
     : null;
-  /** Click-menu actions */
-  const onCardClick = (card: ServerCard) => {
+  /** Secondary card menu, including the option to bank an action card. */
+  const openCardOptions = (card: ServerCard) => {
     if (!isMyTurn) return;
     if (isDiscarding) return;
     if (isPositioning) return;
@@ -1944,6 +2099,174 @@ const PlayScreen: React.FC = () => {
     });
     closeDevelopmentMenu();
   }, [closeDevelopmentMenu, developmentCard, developmentTargetSetId, isMyTurn, playsLeft, wsSend]);
+
+  /** Primary card action: go straight to the action instead of repeating it in a menu. */
+  const playCardPrimary = (card: ServerCard) => {
+    if (
+      !isMyTurn ||
+      playsLeft <= 0 ||
+      isDiscarding ||
+      isPositioning ||
+      isRenting ||
+      isDebtCollecting ||
+      isSlyDealing ||
+      isForcedDealing ||
+      isDealBreaking ||
+      isDeveloping
+    ) {
+      return;
+    }
+
+    if (card.type === "MONEY" || card.type === "PROPERTY") {
+      openCardOptions(card);
+      return;
+    }
+    if (card.type === "RENT_ACTION") {
+      openRentMenu(card);
+      return;
+    }
+    if (card.type !== "GENERAL_ACTION") {
+      openCardOptions(card);
+      return;
+    }
+
+    switch (card.actionType) {
+      case "PASS_GO":
+        wsSend({ type: "PassGo", id: card.id });
+        return;
+      case "BIRTHDAY":
+        wsSend({ type: "Birthday", id: card.id });
+        return;
+      case "DEBT_COLLECTOR":
+        hasDebtTargets ? openDebtCollectorMenu(card) : openCardOptions(card);
+        return;
+      case "SLY_DEAL":
+        hasSlyTargets ? openSlyDealMenu(card) : openCardOptions(card);
+        return;
+      case "FORCED_DEAL":
+        hasForcedTargets ? openForcedDealMenu(card) : openCardOptions(card);
+        return;
+      case "DEAL_BREAKER":
+        hasDealBreakerTargets ? openDealBreakerMenu(card) : openCardOptions(card);
+        return;
+      case "HOUSE":
+        hasHouseTargets ? openDevelopmentMenu(card) : openCardOptions(card);
+        return;
+      case "HOTEL":
+        hasHotelTargets ? openDevelopmentMenu(card) : openCardOptions(card);
+        return;
+      default:
+        openCardOptions(card);
+    }
+  };
+
+  const playPropertyCardFromDrop = useCallback(
+    (card: ServerCard) => {
+      if (!isMyTurn || playsLeft <= 0 || card.type !== "PROPERTY") return;
+      const colors = card.colors ?? [];
+      const chosen = colors[0];
+      if (!chosen) return;
+      if (isRainbowCard(colors)) {
+        const allowedColors = Array.from(
+          new Set(
+            myPropertySets
+              .filter((set) => !set.isComplete && set.color && colors.includes(set.color))
+              .map((set) => set.color as string)
+          )
+        );
+        if (allowedColors.length !== 1) {
+          setMenuCard(card);
+          setColorChoices(allowedColors.length > 0 ? allowedColors : null);
+          return;
+        }
+        wsSend({ type: "PlayProperty", id: card.id, color: allowedColors[0] });
+        return;
+      }
+      if (colors.length > 1) {
+        setMenuCard(card);
+        setColorChoices(colors);
+        return;
+      }
+      wsSend({ type: "PlayProperty", id: card.id, color: chosen });
+    },
+    [isMyTurn, isRainbowCard, myPropertySets, playsLeft, wsSend]
+  );
+
+  const handleGameDragStart = useCallback((event: DragStartEvent) => {
+    const card = event.active.data.current?.card as ServerCard | undefined;
+    setActiveDragCard(card ?? null);
+  }, []);
+
+  const handleGameDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const card = event.active.data.current?.card as ServerCard | undefined;
+      const zone = event.over?.id as GameDropZone | undefined;
+      setActiveDragCard(null);
+      if (!card || !zone || !isMyTurn || playsLeft <= 0) return;
+
+      if (zone === "bank") {
+        if (
+          card.type === "MONEY" ||
+          card.type === "GENERAL_ACTION" ||
+          card.type === "RENT_ACTION"
+        ) {
+          wsSend({ type: "PlayMoney", id: card.id });
+        }
+        return;
+      }
+
+      if (zone === "property-area") {
+        if (card.type === "PROPERTY") {
+          playPropertyCardFromDrop(card);
+          return;
+        }
+        if (card.type === "RENT_ACTION") {
+          openRentMenu(card);
+          return;
+        }
+        if (card.type !== "GENERAL_ACTION") return;
+        switch (card.actionType) {
+          case "PASS_GO":
+            wsSend({ type: "PassGo", id: card.id });
+            return;
+          case "BIRTHDAY":
+            wsSend({ type: "Birthday", id: card.id });
+            return;
+          case "DEBT_COLLECTOR":
+            openDebtCollectorMenu(card);
+            return;
+          case "SLY_DEAL":
+            openSlyDealMenu(card);
+            return;
+          case "FORCED_DEAL":
+            openForcedDealMenu(card);
+            return;
+          case "DEAL_BREAKER":
+            openDealBreakerMenu(card);
+            return;
+          case "HOUSE":
+          case "HOTEL":
+            openDevelopmentMenu(card);
+            return;
+          default:
+            setMenuCard(card);
+            setColorChoices(null);
+        }
+      }
+    },
+    [
+      isMyTurn,
+      openDealBreakerMenu,
+      openDebtCollectorMenu,
+      openDevelopmentMenu,
+      openForcedDealMenu,
+      openRentMenu,
+      openSlyDealMenu,
+      playPropertyCardFromDrop,
+      playsLeft,
+      wsSend,
+    ]
+  );
 
   const toggleRentBankCard = useCallback(
     (cardId: number) => {
@@ -2719,6 +3042,13 @@ const PlayScreen: React.FC = () => {
   }, [isMuted, volume]);
 
   return (
+    <DndContext
+      sensors={dndSensors}
+      collisionDetection={pointerWithin}
+      onDragStart={handleGameDragStart}
+      onDragEnd={handleGameDragEnd}
+      onDragCancel={() => setActiveDragCard(null)}
+    >
     <div className="play-screen">
       {/* Top bar */}
       <div className={`play-topbar mode-${topbarMode}`}>
@@ -2828,6 +3158,15 @@ const PlayScreen: React.FC = () => {
               </span>
             )}
           </button>
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={() => setShowSettings(true)}
+            aria-label="Open game settings"
+            title="Settings"
+          >
+            <TbSettings size={18} />
+          </button>
           <div
             className={`ws-dot ${wsReady ? "on" : "off"}`}
             title={wsReady ? "Connected" : "Reconnecting..."}
@@ -2835,7 +3174,7 @@ const PlayScreen: React.FC = () => {
         </div>
       </div>
 
-      <div className="play-area">
+      <div className="play-area" ref={playAreaRef}>
         <Mat
           layout={layout}
           myPID={myPID}
@@ -2844,6 +3183,21 @@ const PlayScreen: React.FC = () => {
           playerCardMap={playerCardMap}
           cardImageForId={(id) => cardAssetMap[id] ?? cardBack}
         />
+
+        {dragDropEnabled && (
+          <>
+            <GameDropTarget
+              zone="bank"
+              rect={dropRects.bank}
+              activeCard={activeDragCard}
+            />
+            <GameDropTarget
+              zone="property-area"
+              rect={dropRects["property-area"]}
+              activeCard={activeDragCard}
+            />
+          </>
+        )}
 
         <div
           className={`sound-controls ${showVolumeSlider ? "expanded" : ""}`}
@@ -2939,6 +3293,49 @@ const PlayScreen: React.FC = () => {
         )}
       </div>
 
+      {showSettings && (
+        <div className="settings-overlay" role="dialog" aria-modal="true">
+          <div className="settings-modal">
+            <div className="settings-header">
+              <div>
+                <div className="settings-title">Game Settings</div>
+                <div className="settings-subtitle">Controls and accessibility</div>
+              </div>
+              <button
+                type="button"
+                className="settings-close"
+                onClick={() => setShowSettings(false)}
+              >
+                Close
+              </button>
+            </div>
+            <label className="settings-toggle-row">
+              <span>
+                <strong>Drag and drop cards</strong>
+                <small>Drag compatible cards onto your bank or board area.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={dragDropEnabled}
+                onChange={(event) => setDragDropEnabled(event.target.checked)}
+              />
+            </label>
+            <div className="settings-note">
+              Turn this off for accessibility click mode. The click menu remains available
+              either way.
+            </div>
+          </div>
+        </div>
+      )}
+
+      <DragOverlay>
+        {activeDragCard ? (
+          <div className="hand-card drag-overlay-card">
+            <img src={assetForCard(activeDragCard)} alt={activeDragCard.type} draggable={false} />
+          </div>
+        ) : null}
+      </DragOverlay>
+
       {toasts.length > 0 && (
         <div className="toast-stack" role="status" aria-live="polite">
           {toasts.map((toast) => (
@@ -2997,7 +3394,9 @@ const PlayScreen: React.FC = () => {
                     key={`${card.id}-${idx}`}
                     card={card}
                     canDrag={canDrag}
-                    onClick={() => onCardClick(card)}
+                    dragEnabled={dragDropEnabled}
+                    onClick={() => playCardPrimary(card)}
+                    onOptions={() => openCardOptions(card)}
                   />
                 );
               })}
@@ -3456,6 +3855,7 @@ const PlayScreen: React.FC = () => {
         </div>
       )}
     </div>
+    </DndContext>
   );
 };
 

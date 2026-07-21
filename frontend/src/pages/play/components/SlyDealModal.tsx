@@ -36,8 +36,6 @@ export default function SlyDealModal({
   onConfirm,
   canConfirm,
 }: Props) {
-  if (!isOpen || !slyCard) return null;
-
   const [isMinimized, setIsMinimized] = useState(false);
 
   useEffect(() => {
@@ -45,6 +43,8 @@ export default function SlyDealModal({
       setIsMinimized(false);
     }
   }, [isOpen]);
+
+  if (!isOpen || !slyCard) return null;
 
   if (isMinimized) {
     return (
