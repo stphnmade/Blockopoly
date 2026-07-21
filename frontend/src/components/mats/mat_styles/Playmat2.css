@@ -24,8 +24,45 @@
   flex-direction: row-reverse;
 }
 
-.center-pile {
+.playing-mat-outline-2-players .center-pile {
   grid-area: center;
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Keep the visible pile centered in the lane between both player boards. */
+.playing-mat-outline-2-players .discard-pile {
+  top: auto;
+  width: clamp(82px, 7vw, 116px);
+  height: auto;
+  aspect-ratio: 5 / 7;
+  flex: 0 0 auto;
+}
+
+.playing-mat-outline-2-players .discard-pile img {
+  width: 100%;
+  height: 100%;
+  left: 50%;
+  top: 50%;
+  object-fit: contain;
+  transform-origin: center;
+}
+
+.playing-mat-outline-2-players .discard-pile .card-1 {
+  transform: translate(-58%, -50%) rotate(-8deg);
+}
+
+.playing-mat-outline-2-players .discard-pile .card-2 {
+  transform: translate(-50%, -50%);
+}
+
+.playing-mat-outline-2-players .discard-pile .card-3 {
+  transform: translate(-42%, -50%) rotate(8deg);
+}
+
+.playing-mat-outline-2-players .discard-pile img:only-child {
+  transform: translate(-50%, -50%);
 }
 
 .player-1-space .property-collection,

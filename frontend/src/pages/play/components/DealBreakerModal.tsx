@@ -33,8 +33,6 @@ export default function DealBreakerModal({
   onConfirm,
   canConfirm,
 }: Props) {
-  if (!isOpen || !dealBreakerCard) return null;
-
   const [isMinimized, setIsMinimized] = useState(false);
 
   useEffect(() => {
@@ -42,6 +40,8 @@ export default function DealBreakerModal({
       setIsMinimized(false);
     }
   }, [isOpen]);
+
+  if (!isOpen || !dealBreakerCard) return null;
 
   if (isMinimized) {
     return (

@@ -42,8 +42,6 @@ export default function ForcedDealModal({
   onConfirm,
   canConfirm,
 }: Props) {
-  if (!isOpen || !forcedCard) return null;
-
   const [isMinimized, setIsMinimized] = useState(false);
 
   useEffect(() => {
@@ -51,6 +49,8 @@ export default function ForcedDealModal({
       setIsMinimized(false);
     }
   }, [isOpen]);
+
+  if (!isOpen || !forcedCard) return null;
 
   if (isMinimized) {
     return (
