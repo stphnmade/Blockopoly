@@ -5,6 +5,7 @@ import com.gameservice.DEBT_COLLECTOR_PAYMENT_AMOUNT
 import com.gameservice.DealGame
 import com.gameservice.NUM_COMPLETE_SETS_TO_WIN
 import com.gameservice.models.AcceptCharge
+import com.gameservice.models.ActionInvalidMessage
 import com.gameservice.models.BirthdayMessage
 import com.gameservice.models.DebtCollectMessage
 import com.gameservice.models.GameState
@@ -40,7 +41,16 @@ suspend fun handlePayment(room: DealGame, gameState: GameState, playerId: String
             payRent(gameState, playerId, request.requester, payment.payment, amountRequested)
         else -> pay(gameState, playerId, request.requester, payment.payment, amountRequested)
     }
-    if (!success) return gameState
+    if (!success) {
+        room.sendBroadcast(
+            ActionInvalidMessage(
+                playerId,
+                "Payment",
+                "Payment failed: review the selected cards and try again."
+            )
+        )
+        return gameState
+    }
     gameState.pendingInteractions.remove(interaction)
     room.sendBroadcast(
         PaymentEarningsMessage(

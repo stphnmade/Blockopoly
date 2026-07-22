@@ -474,7 +474,7 @@ const PlayScreen: React.FC = () => {
   const [dropRects, setDropRects] = useState<Partial<Record<GameDropZone, DropRect>>>({});
   const [dropSnap, setDropSnap] = useState<DropSnap | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
+  const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0 to 1)
   const [isSubmittingCharge, setIsSubmittingCharge] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
 
@@ -1030,6 +1030,7 @@ const PlayScreen: React.FC = () => {
               : receiver === myPID
                 ? `${displayName(giver)} paid you with ${cardLabel}.`
                 : `${displayName(giver)} paid ${displayName(receiver)} with ${cardLabel}.`;
+          if (giver === myPID) setIsSubmittingCharge(false);
           pushToast(message, "info");
           return;
         }
@@ -1042,6 +1043,9 @@ const PlayScreen: React.FC = () => {
           const message = reason
             ? reason
             : `${displayName(playerId)} attempted an invalid ${actionLabel}.`;
+          if (playerId === myPID && action?.toUpperCase() === "PAYMENT") {
+            setIsSubmittingCharge(false);
+          }
           pushToast(message, "error");
           return;
         }
@@ -1897,18 +1901,41 @@ const PlayScreen: React.FC = () => {
     setPositionTarget({ toSetId, toColor });
   }, []);
 
+  const movePositioningCard = useCallback(
+    (
+      card: ServerCard,
+      fromSetId: string,
+      toSetId: string,
+      toColor?: string | null
+    ) => {
+      if (!isMyTurn) return false;
+      const action: Action = {
+        type: "MoveProperty",
+        cardId: card.id,
+        fromSetId,
+        toSetId,
+        ...(toColor ? { toColor } : {}),
+      };
+      if (!wsSend(action)) {
+        pushToast("Still reconnecting: try the move again.", "error");
+        return false;
+      }
+      setPositioningCard(null);
+      setPositionTarget(null);
+      return true;
+    },
+    [isMyTurn, pushToast, wsSend]
+  );
+
   const confirmPositioning = useCallback(() => {
-    if (!isMyTurn || !positioningCard || !positionTarget) return;
-    const action: Action = {
-      type: "MoveProperty",
-      cardId: positioningCard.card.id,
-      fromSetId: positioningCard.fromSetId,
-      toSetId: positionTarget.toSetId,
-      ...(positionTarget.toColor ? { toColor: positionTarget.toColor } : {}),
-    };
-    wsSend(action);
-    closePositioning();
-  }, [closePositioning, isMyTurn, positioningCard, positionTarget, wsSend]);
+    if (!positioningCard || !positionTarget) return;
+    movePositioningCard(
+      positioningCard.card,
+      positioningCard.fromSetId,
+      positionTarget.toSetId,
+      positionTarget.toColor
+    );
+  }, [movePositioningCard, positioningCard, positionTarget]);
 
   const openRentMenu = useCallback((card: ServerCard) => {
     if (!isMyTurn || isDiscarding || isPositioning || playsLeft <= 0) return;
@@ -2332,7 +2359,7 @@ const PlayScreen: React.FC = () => {
           if (wsSend({ type: "PlayMoney", id: card.id })) {
             animateSuccessfulDrop(event, card, zone);
           } else {
-            pushToast("Still reconnecting—please try that drop again.", "error");
+            pushToast("Still reconnecting: try that drop again.", "error");
           }
         }
         return;
@@ -2414,10 +2441,14 @@ const PlayScreen: React.FC = () => {
     if (!rentCharge || !canPayRent || isSubmittingCharge) return;
     const payment = [...rentBankSelection, ...rentPropertySelection];
     setIsSubmittingCharge(true);
-    wsSend({ type: "AcceptCharge", payment });
+    if (!wsSend({ type: "AcceptCharge", payment })) {
+      setIsSubmittingCharge(false);
+      pushToast("Still reconnecting: payment was not sent.", "error");
+    }
   }, [
     canPayRent,
     isSubmittingCharge,
+    pushToast,
     rentBankSelection,
     rentCharge,
     rentPropertySelection,
@@ -2827,6 +2858,15 @@ const PlayScreen: React.FC = () => {
     rentTotalValue,
     rentMustPayAll,
   ]);
+
+  useEffect(() => {
+    if (!isSubmittingCharge) return;
+    const timer = window.setTimeout(() => {
+      setIsSubmittingCharge(false);
+      pushToast("Payment is still pending: you can try again.", "error");
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [isSubmittingCharge, pushToast]);
 
   useEffect(() => {
     const timers = toastTimers.current;
@@ -3571,6 +3611,7 @@ const PlayScreen: React.FC = () => {
         assetForCard={assetForCard}
         onSelectCard={selectPositioningCard}
         onSelectTarget={selectPositionTarget}
+        onMove={movePositioningCard}
         onClose={closePositioning}
         onConfirm={confirmPositioning}
         canConfirm={!!positioningCard && !!positionTarget}

@@ -1,9 +1,9 @@
 // src/utils/cardMapping.ts
-// ————————————————————————————————————————————————————————————————
+// ----------------------------------------------------------------
 // Build a map of card-ID → asset URL, mirroring your Kotlin logic.
 // Mono-color properties now pick distinct SVGs for each copy,
 // and null-priced wildcards map to the card back.
-// ————————————————————————————————————————————————————————————————
+// ----------------------------------------------------------------
 
 /** 1. Glob-import all your card SVGs as URLs */
 // Vite changed import.meta.glob options; use query + import to get URLs

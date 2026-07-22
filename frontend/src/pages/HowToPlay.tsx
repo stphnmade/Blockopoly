@@ -118,7 +118,7 @@ export const HowToPlay: React.FC = () => {
           <>
             <h2>The Board</h2>
             <p>
-              The main play screen shows a shared board with 2–5 player spaces.
+              The main play screen shows a shared board with 2 to 5 player spaces.
               Each player has a property collection (estate field), a bank, and
               a personal hand at the edge closest to them.
             </p>

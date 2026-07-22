@@ -113,6 +113,6 @@ suspend fun moveProperty(room: DealGame, game: MutableStateFlow<GameState>, play
             newIdentityIfWild = if (propertyColors.size > 1) effectiveColor else null
         ))
         
-        return current
+        return current.copy()
     }
 }

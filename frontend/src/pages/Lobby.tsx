@@ -217,7 +217,7 @@ const Lobby: React.FC = () => {
     };
 
     es.onerror = (error) => {
-      // IMPORTANT: don't close here — let EventSource auto-retry
+      // Keep this open so EventSource can retry automatically.
       if (!closingSseRef.current) {
         console.error("[Lobby] SSE error (auto-retry will continue):", error);
       }
@@ -262,7 +262,7 @@ const Lobby: React.FC = () => {
       console.log("[startGame] Start request sent. Waiting for SSE START…");
     } catch (err) {
       console.error("[startGame] Couldn’t start:", err);
-      alert("Could not start the game – check the server log.");
+      alert("Could not start the game: check the server log.");
     }
   };
 

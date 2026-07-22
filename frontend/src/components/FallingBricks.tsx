@@ -12,7 +12,7 @@ const FallingBricks = () => {
           className="brick"
           style={{
             left: `${Math.random() * 100}vw`,
-            animationDuration: `${Math.random() * 2 + 3}s`, // 3–5s fall time
+            animationDuration: `${Math.random() * 2 + 3}s`, // 3 to 5 second fall time
             backgroundColor: Math.random() > 0.5 ? "#d97706" : "#92400e",
           }}
         />
