@@ -24,7 +24,7 @@
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
   z-index: 60;
   display: flex;
   justify-content: center;
@@ -34,20 +34,122 @@
 .mat-hand-row {
   pointer-events: auto;
   display: flex;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--mat-radius-panel);
-  background: rgba(17,19,23,.75);
-  backdrop-filter: blur(4px);
-  box-shadow: var(--mat-shadow-e2);
+  gap: 12px;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(38, 41, 47, 0.94), rgba(20, 22, 27, 0.92));
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .mat-hand-side {
   display: flex;
   flex-direction: column;
+  flex: 0 0 132px;
+  gap: 8px;
+  justify-content: center;
+  padding: 2px 12px 2px 2px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.hand-player-meta {
+  min-width: 0;
+}
+
+.hand-kicker {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.hand-player-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.hand-player-line strong {
+  overflow: hidden;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hand-card-count {
+  display: inline-grid;
+  flex: 0 0 auto;
+  min-width: 24px;
+  height: 20px;
+  padding-inline: 6px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.hand-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 5px;
-  align-items: flex-start;
-  margin-right: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.hand-collapse-btn:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.hand-collapse-btn:active {
+  transform: translateY(1px);
+}
+
+.hand-collapse-btn:focus-visible {
+  outline: 2px solid #70b7ff;
+  outline-offset: 2px;
+}
+
+.mat-hand-side .end-turn-button {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 10px;
+  transition: filter 140ms ease, transform 140ms ease, opacity 140ms ease;
+}
+
+.mat-hand-side .end-turn-button:not(:disabled):hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.mat-hand-side .end-turn-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .mat-hand-cards {
@@ -56,7 +158,38 @@
   align-items: flex-end;
   max-width: min(76vw, 760px);
   overflow-x: auto;
-  padding: 2px 2px 4px;
+  overflow-y: hidden;
+  padding: 3px 4px;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scroll-padding-inline: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mat-hand-cards::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .mat-hand-row {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .mat-hand-side {
+    flex-basis: 104px;
+    padding-right: 8px;
+  }
+
+  .hand-collapse-btn span {
+    font-size: 0;
+  }
+
+  .hand-collapse-btn span::after {
+    content: "Hand";
+    font-size: 0.75rem;
+  }
 }
 
 .zone {

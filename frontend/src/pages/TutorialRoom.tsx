@@ -14,6 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
+import { TbChevronDown, TbChevronUp } from "react-icons/tb";
 import Playmat3 from "../components/mats/Playmat3";
 import { cardAssetMap } from "../utils/cardmapping";
 import "../style/PlayScreen.css";
@@ -720,16 +721,25 @@ export const TutorialRoom: React.FC = () => {
         <div className="mat-hand-overlay tutorial-hand-overlay">
           <div className="mat-hand-row">
             <div className="mat-hand-side">
-              <div className="flex items-center gap-3 mr-2">
-                <button
-                  className="hand-collapse-btn"
-                  onClick={() => setHandExpanded((expanded) => !expanded)}
-                  aria-expanded={handExpanded}
-                >
-                  {handExpanded ? "Hide" : "Tutorial hand"}
-                </button>
-                <div className="text-sm font-medium">Tutorial hand</div>
+              <div className="hand-player-meta">
+                <span className="hand-kicker">Your hand</span>
+                <div className="hand-player-line">
+                  <strong>Tutorial</strong>
+                  <span className="hand-card-count" aria-label={`${handCards.length} cards`}>
+                    {handCards.length}
+                  </span>
+                </div>
               </div>
+              <button
+                type="button"
+                className="hand-collapse-btn"
+                onClick={() => setHandExpanded((expanded) => !expanded)}
+                aria-expanded={handExpanded}
+                aria-label={handExpanded ? "Collapse tutorial hand" : "Show tutorial hand"}
+              >
+                {handExpanded ? <TbChevronDown aria-hidden /> : <TbChevronUp aria-hidden />}
+                <span>{handExpanded ? "Collapse" : "Show cards"}</span>
+              </button>
               <button
                 type="button"
                 className="end-turn-button"

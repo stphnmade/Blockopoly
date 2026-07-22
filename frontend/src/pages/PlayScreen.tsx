@@ -17,15 +17,21 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  pointerWithin,
+  rectIntersection,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { TbSettings, TbZoomInArea } from "react-icons/tb";
+import {
+  TbChevronDown,
+  TbChevronUp,
+  TbSettings,
+  TbZoomInArea,
+} from "react-icons/tb";
 import {
   PLAYERS_KEY,
   PLAYER_ID_KEY,
@@ -62,6 +68,16 @@ import { PRELOAD_SFX, SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soun
 
 type GameDropZone = "bank" | "property-area" | "action-area";
 type DropRect = { left: number; top: number; width: number; height: number };
+type DropSnap = {
+  id: number;
+  image: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  deltaX: number;
+  deltaY: number;
+};
 
 import { cardAssetMap } from "../utils/cardmapping";
 const cardBack = new URL("../assets/cards/card-back.svg", import.meta.url).href;
@@ -208,14 +224,23 @@ const isValidDrop = (zone: GameDropZone, card: ServerCard | null) => {
   );
 };
 
+const gameCollisionDetection: CollisionDetection = (args) => {
+  const card = (args.active.data.current?.card as ServerCard | undefined) ?? null;
+  const supportedContainers = args.droppableContainers.filter((container) => {
+    const zone = container.id as GameDropZone;
+    return ["bank", "property-area", "action-area"].includes(zone) && isValidDrop(zone, card);
+  });
+  return rectIntersection({ ...args, droppableContainers: supportedContainers });
+};
+
 const GameDropTarget: React.FC<{
   zone: GameDropZone;
   rect?: DropRect;
   activeCard: ServerCard | null;
 }> = ({ zone, rect, activeCard }) => {
   const valid = isValidDrop(zone, activeCard);
-  const { isOver, setNodeRef } = useDroppable({ id: zone, disabled: !valid });
-  if (!rect || !activeCard) return null;
+  const { isOver, setNodeRef } = useDroppable({ id: zone });
+  if (!rect) return null;
 
   const label =
     zone === "bank"
@@ -250,7 +275,7 @@ const DraggableCard: React.FC<{
   onOptions: () => void;
 }> = ({ card, canDrag, dragEnabled, onClick, onOptions }) => {
   const draggable = dragEnabled && canDrag;
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `hand:${card.id}`,
     data: { card },
     disabled: !draggable,
@@ -262,13 +287,6 @@ const DraggableCard: React.FC<{
       className={`hand-card ${canDrag ? "clickable" : ""} ${
         draggable ? "draggable" : ""
       } ${isDragging ? "dragging" : ""}`}
-      style={
-        transform
-          ? {
-              transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-            }
-          : undefined
-      }
       onClick={(e) => {
         e.preventDefault();
         onClick();
@@ -454,6 +472,7 @@ const PlayScreen: React.FC = () => {
   });
   const [activeDragCard, setActiveDragCard] = useState<ServerCard | null>(null);
   const [dropRects, setDropRects] = useState<Partial<Record<GameDropZone, DropRect>>>({});
+  const [dropSnap, setDropSnap] = useState<DropSnap | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.8); // shared volume for bgm + sfx (0–1)
   const [isSubmittingCharge, setIsSubmittingCharge] = useState(false);
@@ -475,6 +494,7 @@ const PlayScreen: React.FC = () => {
   const sfxPoolRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const sfxFadeTimersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
   const playAreaRef = useRef<HTMLDivElement | null>(null);
+  const dropSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dndSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 12 },
@@ -491,8 +511,9 @@ const PlayScreen: React.FC = () => {
 
   const wsSend = useCallback((action: Action) => {
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
     ws.send(JSON.stringify(action));
+    return true;
   }, []);
   const restartRequestedRef = useRef(false);
 
@@ -502,6 +523,13 @@ const PlayScreen: React.FC = () => {
       dragDropEnabled ? "true" : "false"
     );
   }, [dragDropEnabled]);
+
+  useEffect(
+    () => () => {
+      if (dropSnapTimerRef.current) clearTimeout(dropSnapTimerRef.current);
+    },
+    []
+  );
 
   useLayoutEffect(() => {
     if (!dragDropEnabled) {
@@ -2225,10 +2253,10 @@ const PlayScreen: React.FC = () => {
 
   const playPropertyCardFromDrop = useCallback(
     (card: ServerCard) => {
-      if (!isMyTurn || playsLeft <= 0 || card.type !== "PROPERTY") return;
+      if (!isMyTurn || playsLeft <= 0 || card.type !== "PROPERTY") return false;
       const colors = card.colors ?? [];
       const chosen = colors[0];
-      if (!chosen) return;
+      if (!chosen) return false;
       if (isRainbowCard(colors)) {
         const allowedColors = Array.from(
           new Set(
@@ -2240,19 +2268,47 @@ const PlayScreen: React.FC = () => {
         if (allowedColors.length !== 1) {
           setMenuCard(card);
           setColorChoices(allowedColors.length > 0 ? allowedColors : null);
-          return;
+          pushToast("Choose which color to play this wild property as.", "info");
+          return false;
         }
-        wsSend({ type: "PlayProperty", id: card.id, color: allowedColors[0] });
-        return;
+        return wsSend({ type: "PlayProperty", id: card.id, color: allowedColors[0] });
       }
       if (colors.length > 1) {
         setMenuCard(card);
         setColorChoices(colors);
-        return;
+        pushToast("Choose which color to play this wild property as.", "info");
+        return false;
       }
-      wsSend({ type: "PlayProperty", id: card.id, color: chosen });
+      return wsSend({ type: "PlayProperty", id: card.id, color: chosen });
     },
-    [isMyTurn, isRainbowCard, myPropertySets, playsLeft, wsSend]
+    [isMyTurn, isRainbowCard, myPropertySets, playsLeft, pushToast, wsSend]
+  );
+
+  const animateSuccessfulDrop = useCallback(
+    (event: DragEndEvent, card: ServerCard, zone: GameDropZone) => {
+      const root = playAreaRef.current;
+      const target = dropRects[zone];
+      const translated = event.active.rect.current.translated;
+      if (!root || !target || !translated) return;
+      const rootBox = root.getBoundingClientRect();
+      const left = translated.left - rootBox.left;
+      const top = translated.top - rootBox.top;
+      const targetLeft = target.left + target.width / 2 - translated.width / 2;
+      const targetTop = target.top + target.height / 2 - translated.height / 2;
+      if (dropSnapTimerRef.current) clearTimeout(dropSnapTimerRef.current);
+      setDropSnap({
+        id: Date.now(),
+        image: assetForCard(card),
+        left,
+        top,
+        width: translated.width,
+        height: translated.height,
+        deltaX: targetLeft - left,
+        deltaY: targetTop - top,
+      });
+      dropSnapTimerRef.current = setTimeout(() => setDropSnap(null), 460);
+    },
+    [dropRects]
   );
 
   const handleGameDragStart = useCallback((event: DragStartEvent) => {
@@ -2273,14 +2329,20 @@ const PlayScreen: React.FC = () => {
           card.type === "GENERAL_ACTION" ||
           card.type === "RENT_ACTION"
         ) {
-          wsSend({ type: "PlayMoney", id: card.id });
+          if (wsSend({ type: "PlayMoney", id: card.id })) {
+            animateSuccessfulDrop(event, card, zone);
+          } else {
+            pushToast("Still reconnecting—please try that drop again.", "error");
+          }
         }
         return;
       }
 
       if (zone === "property-area") {
         if (card.type === "PROPERTY") {
-          playPropertyCardFromDrop(card);
+          if (playPropertyCardFromDrop(card)) {
+            animateSuccessfulDrop(event, card, zone);
+          }
           return;
         }
         if (
@@ -2299,8 +2361,12 @@ const PlayScreen: React.FC = () => {
         }
         if (card.type !== "GENERAL_ACTION") return;
         switch (card.actionType) {
-          case "PASS_GO": wsSend({ type: "PassGo", id: card.id }); return;
-          case "BIRTHDAY": wsSend({ type: "Birthday", id: card.id }); return;
+          case "PASS_GO":
+            if (wsSend({ type: "PassGo", id: card.id })) animateSuccessfulDrop(event, card, zone);
+            return;
+          case "BIRTHDAY":
+            if (wsSend({ type: "Birthday", id: card.id })) animateSuccessfulDrop(event, card, zone);
+            return;
           case "DEBT_COLLECTOR": openDebtCollectorMenu(card); return;
           case "SLY_DEAL": openSlyDealMenu(card); return;
           case "FORCED_DEAL": openForcedDealMenu(card); return;
@@ -2310,6 +2376,7 @@ const PlayScreen: React.FC = () => {
     },
     [
       isMyTurn,
+      animateSuccessfulDrop,
       openDealBreakerMenu,
       openDebtCollectorMenu,
       openDevelopmentMenu,
@@ -2318,6 +2385,7 @@ const PlayScreen: React.FC = () => {
       openSlyDealMenu,
       playPropertyCardFromDrop,
       playsLeft,
+      pushToast,
       wsSend,
     ]
   );
@@ -3098,7 +3166,7 @@ const PlayScreen: React.FC = () => {
   return (
     <DndContext
       sensors={dndSensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={gameCollisionDetection}
       onDragStart={handleGameDragStart}
       onDragEnd={handleGameDragEnd}
       onDragCancel={() => setActiveDragCard(null)}
@@ -3258,6 +3326,26 @@ const PlayScreen: React.FC = () => {
           </>
         )}
 
+        {dropSnap && (
+          <img
+            key={dropSnap.id}
+            className="drop-snap-card"
+            src={dropSnap.image}
+            alt=""
+            aria-hidden
+            style={
+              {
+                left: dropSnap.left,
+                top: dropSnap.top,
+                width: dropSnap.width,
+                height: dropSnap.height,
+                "--drop-snap-x": `${dropSnap.deltaX}px`,
+                "--drop-snap-y": `${dropSnap.deltaY}px`,
+              } as React.CSSProperties
+            }
+          />
+        )}
+
         <div
           className={`sound-controls ${showVolumeSlider ? "expanded" : ""}`}
           onMouseEnter={() => {
@@ -3387,7 +3475,7 @@ const PlayScreen: React.FC = () => {
         </div>
       )}
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {activeDragCard ? (
           <div className="hand-card drag-overlay-card">
             <img src={assetForCard(activeDragCard)} alt={activeDragCard.type} draggable={false} />
@@ -3415,17 +3503,26 @@ const PlayScreen: React.FC = () => {
       <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
         <div className="mat-hand-row">
           <div className="mat-hand-side">
-            <div className="flex items-center gap-3 mr-2">
-              <button
-                className="hand-collapse-btn"
-                onClick={() => setHandExpanded((s) => !s)}
-                aria-expanded={handExpanded ? "true" : "false"}
-                title={handExpanded ? "Hide hand" : "Show hand"}
-              >
-                {handExpanded ? "Hide" : `${myName || "Your"} hand`}
-              </button>
-              <div className="text-sm font-medium">{myName || "Your hand"}</div>
+            <div className="hand-player-meta">
+              <span className="hand-kicker">Your hand</span>
+              <div className="hand-player-line">
+                <strong>{myName || "Player"}</strong>
+                <span className="hand-card-count" aria-label={`${myHand.length} cards`}>
+                  {myHand.length}
+                </span>
+              </div>
             </div>
+            <button
+              type="button"
+              className="hand-collapse-btn"
+              onClick={() => setHandExpanded((s) => !s)}
+              aria-expanded={handExpanded}
+              aria-label={handExpanded ? "Collapse hand" : "Show hand"}
+              title={handExpanded ? "Collapse hand" : "Show hand"}
+            >
+              {handExpanded ? <TbChevronDown aria-hidden /> : <TbChevronUp aria-hidden />}
+              <span>{handExpanded ? "Collapse" : "Show cards"}</span>
+            </button>
             <button
               type="button"
               className="end-turn-button"
