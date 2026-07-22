@@ -92,10 +92,10 @@ function PositionCardButton({
         event.stopPropagation();
         onSelect(card, setId);
       }}
-      aria-pressed={selected}
-      aria-label={`Select property card ${card.id} from this collection`}
       {...attributes}
       {...listeners}
+      aria-pressed={selected}
+      aria-label={`Select property card ${card.id} from this collection`}
     >
       <img src={assetForCard(card)} alt="Property card" draggable={false} />
     </button>
