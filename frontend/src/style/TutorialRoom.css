@@ -247,8 +247,15 @@
 }
 
 .tutorial-hand-overlay {
+  align-items: center;
+  flex-direction: column;
   z-index: 70;
-  width: min(980px, calc(100vw - 24px));
+  width: auto;
+}
+
+.tutorial-hand-overlay .hand-window.vertical ~ .tutorial-turn-tracker {
+  flex-wrap: wrap;
+  max-width: 202px;
 }
 
 .tutorial-hand-card {

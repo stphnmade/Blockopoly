@@ -1,4 +1,11 @@
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CSSProperties } from "react";
 import {
   DndContext,
@@ -14,7 +21,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useNavigate } from "react-router-dom";
-import { TbChevronDown, TbChevronUp } from "react-icons/tb";
+import {
+  TbChevronDown,
+  TbChevronUp,
+  TbFlagCheck,
+  TbGripHorizontal,
+  TbLayoutBottombar,
+  TbRotate,
+} from "react-icons/tb";
 import Playmat3 from "../components/mats/Playmat3";
 import { cardAssetMap } from "../utils/cardmapping";
 import "../style/PlayScreen.css";
@@ -51,6 +65,42 @@ type TutorialStep = {
 
 type PlacedCard = TutorialCard & { zone: TutorialZone };
 type ZoneRect = { left: number; top: number; width: number; height: number };
+type HandOrientation = "horizontal" | "vertical";
+type TutorialHandLayout = {
+  mode: "docked" | "floating";
+  orientation: HandOrientation;
+  x: number;
+  y: number;
+};
+
+const TUTORIAL_HAND_LAYOUT_STORAGE_KEY = "BLOCKOPOLY_TUTORIAL_HAND_LAYOUT";
+const DEFAULT_TUTORIAL_HAND_LAYOUT: TutorialHandLayout = {
+  mode: "docked",
+  orientation: "horizontal",
+  x: 20,
+  y: 96,
+};
+
+const readTutorialHandLayout = (): TutorialHandLayout => {
+  if (typeof window === "undefined") return DEFAULT_TUTORIAL_HAND_LAYOUT;
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(TUTORIAL_HAND_LAYOUT_STORAGE_KEY) ?? "null"
+    );
+    if (
+      stored &&
+      (stored.mode === "docked" || stored.mode === "floating") &&
+      (stored.orientation === "horizontal" || stored.orientation === "vertical") &&
+      Number.isFinite(stored.x) &&
+      Number.isFinite(stored.y)
+    ) {
+      return stored as TutorialHandLayout;
+    }
+  } catch {
+    // Ignore invalid saved tutorial layout and use the stable default.
+  }
+  return DEFAULT_TUTORIAL_HAND_LAYOUT;
+};
 
 const tutorialCards: TutorialCard[] = [
   {
@@ -349,6 +399,14 @@ function TutorialHint({
 export const TutorialRoom: React.FC = () => {
   const navigate = useNavigate();
   const playAreaRef = useRef<HTMLDivElement | null>(null);
+  const handWindowRef = useRef<HTMLDivElement | null>(null);
+  const handDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [stepIndex, setStepIndex] = useState(0);
   const [placedCards, setPlacedCards] = useState<PlacedCard[]>([]);
@@ -360,6 +418,9 @@ export const TutorialRoom: React.FC = () => {
   const [stepModalOpen, setStepModalOpen] = useState(false);
   const [inspectCard, setInspectCard] = useState<TutorialCard | null>(null);
   const [handExpanded, setHandExpanded] = useState(true);
+  const [handLayout, setHandLayout] =
+    useState<TutorialHandLayout>(readTutorialHandLayout);
+  const [isDraggingHand, setIsDraggingHand] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [functionGuideOpen, setFunctionGuideOpen] = useState(false);
   const [message, setMessage] = useState("Use the real hand dock. Compatible board zones highlight while dragging.");
@@ -412,6 +473,146 @@ export const TutorialRoom: React.FC = () => {
       : step.targetZone
         ? zoneRects[step.targetZone]
         : undefined;
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      TUTORIAL_HAND_LAYOUT_STORAGE_KEY,
+      JSON.stringify(handLayout)
+    );
+  }, [handLayout]);
+
+  const clampHandWindowPosition = useCallback((x: number, y: number) => {
+    const rect = handWindowRef.current?.getBoundingClientRect();
+    const width = rect?.width ?? 320;
+    const height = rect?.height ?? 180;
+    const margin = 8;
+    return {
+      x: Math.min(Math.max(margin, x), Math.max(margin, window.innerWidth - width - margin)),
+      y: Math.min(Math.max(margin, y), Math.max(margin, window.innerHeight - height - margin)),
+    };
+  }, []);
+
+  const beginHandWindowDrag = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      const rect = handWindowRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const origin = clampHandWindowPosition(rect.left, rect.top);
+      handDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: origin.x,
+        originY: origin.y,
+      };
+      setHandLayout((previous) => ({ ...previous, mode: "floating", ...origin }));
+      setIsDraggingHand(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    },
+    [clampHandWindowPosition]
+  );
+
+  const moveHandWindow = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = handDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const next = clampHandWindowPosition(
+        drag.originX + event.clientX - drag.startX,
+        drag.originY + event.clientY - drag.startY
+      );
+      setHandLayout((previous) => ({ ...previous, mode: "floating", ...next }));
+    },
+    [clampHandWindowPosition]
+  );
+
+  const finishHandWindowDrag = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = handDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      handDragRef.current = null;
+      setIsDraggingHand(false);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    },
+    []
+  );
+
+  const moveHandWindowWithKeyboard = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      const deltas: Partial<Record<string, [number, number]>> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      const delta = deltas[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      const rect = handWindowRef.current?.getBoundingClientRect();
+      const stepSize = event.shiftKey ? 32 : 12;
+      const originX = handLayout.mode === "floating" ? handLayout.x : rect?.left ?? 20;
+      const originY = handLayout.mode === "floating" ? handLayout.y : rect?.top ?? 96;
+      const next = clampHandWindowPosition(
+        originX + delta[0] * stepSize,
+        originY + delta[1] * stepSize
+      );
+      setHandLayout((previous) => ({ ...previous, mode: "floating", ...next }));
+    },
+    [clampHandWindowPosition, handLayout]
+  );
+
+  const rotateHandWindow = useCallback(() => {
+    const rect = handWindowRef.current?.getBoundingClientRect();
+    setHandLayout((previous) => {
+      const orientation: HandOrientation =
+        previous.orientation === "horizontal" ? "vertical" : "horizontal";
+      const origin =
+        previous.mode === "floating"
+          ? { x: previous.x, y: previous.y }
+          : clampHandWindowPosition(rect?.left ?? 20, rect?.top ?? 96);
+      return { ...previous, mode: "floating", orientation, ...origin };
+    });
+  }, [clampHandWindowPosition]);
+
+  const dockHandWindow = useCallback(() => {
+    handDragRef.current = null;
+    setIsDraggingHand(false);
+    setHandLayout((previous) => ({
+      ...previous,
+      mode: "docked",
+      orientation: "horizontal",
+    }));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (handLayout.mode !== "floating") return;
+    const frame = window.requestAnimationFrame(() => {
+      setHandLayout((previous) => {
+        if (previous.mode !== "floating") return previous;
+        const next = clampHandWindowPosition(previous.x, previous.y);
+        return next.x === previous.x && next.y === previous.y
+          ? previous
+          : { ...previous, ...next };
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [clampHandWindowPosition, handExpanded, handLayout.mode, handLayout.orientation]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setHandLayout((previous) => {
+        if (previous.mode !== "floating") return previous;
+        const next = clampHandWindowPosition(previous.x, previous.y);
+        return next.x === previous.x && next.y === previous.y
+          ? previous
+          : { ...previous, ...next };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [clampHandWindowPosition]);
 
   useLayoutEffect(() => {
     const root = playAreaRef.current;
@@ -718,9 +919,21 @@ export const TutorialRoom: React.FC = () => {
 
         </div>
 
-        <div className="mat-hand-overlay tutorial-hand-overlay">
-          <div className="mat-hand-row">
-            <div className="mat-hand-side">
+        <div
+          ref={handWindowRef}
+          className={`mat-hand-overlay hand-window-shell tutorial-hand-overlay ${handLayout.mode}`}
+          style={
+            handLayout.mode === "floating"
+              ? { left: handLayout.x, top: handLayout.y, bottom: "auto", transform: "none" }
+              : undefined
+          }
+        >
+          <div
+            className={`mat-hand-row hand-window ${handLayout.orientation} ${
+              handExpanded ? "expanded" : "collapsed"
+            } ${isDraggingHand ? "moving" : ""}`}
+          >
+            <div className="hand-window-toolbar">
               <div className="hand-player-meta">
                 <span className="hand-kicker">Your hand</span>
                 <div className="hand-player-line">
@@ -730,28 +943,68 @@ export const TutorialRoom: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                className="hand-collapse-btn"
-                onClick={() => setHandExpanded((expanded) => !expanded)}
-                aria-expanded={handExpanded}
-                aria-label={handExpanded ? "Collapse tutorial hand" : "Show tutorial hand"}
-              >
-                {handExpanded ? <TbChevronDown aria-hidden /> : <TbChevronUp aria-hidden />}
-                <span>{handExpanded ? "Collapse" : "Show cards"}</span>
-              </button>
-              <button
-                type="button"
-                className="end-turn-button"
-                disabled={step.kind !== "button" || stepComplete}
-                onClick={completeButtonStep}
-              >
-                End Turn
-              </button>
+              <div className="hand-window-controls" aria-label="Tutorial hand window controls">
+                <button
+                  type="button"
+                  className="hand-window-icon hand-window-grip"
+                  onPointerDown={beginHandWindowDrag}
+                  onPointerMove={moveHandWindow}
+                  onPointerUp={finishHandWindowDrag}
+                  onPointerCancel={finishHandWindowDrag}
+                  onLostPointerCapture={() => {
+                    handDragRef.current = null;
+                    setIsDraggingHand(false);
+                  }}
+                  onKeyDown={moveHandWindowWithKeyboard}
+                  aria-label="Move tutorial hand window"
+                  title="Move hand window"
+                >
+                  <TbGripHorizontal aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="hand-window-icon"
+                  onClick={rotateHandWindow}
+                  aria-label="Rotate tutorial hand"
+                  title="Rotate hand"
+                >
+                  <TbRotate aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="hand-window-icon"
+                  onClick={dockHandWindow}
+                  disabled={handLayout.mode === "docked"}
+                  aria-label="Dock tutorial hand"
+                  title="Dock hand"
+                >
+                  <TbLayoutBottombar aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="hand-window-icon"
+                  onClick={() => setHandExpanded((expanded) => !expanded)}
+                  aria-expanded={handExpanded}
+                  aria-label={handExpanded ? "Collapse tutorial hand" : "Show tutorial hand"}
+                  title={handExpanded ? "Collapse hand" : "Show hand"}
+                >
+                  {handExpanded ? <TbChevronDown aria-hidden /> : <TbChevronUp aria-hidden />}
+                </button>
+                <button
+                  type="button"
+                  className="hand-window-icon hand-window-end-turn"
+                  disabled={step.kind !== "button" || stepComplete}
+                  onClick={completeButtonStep}
+                  aria-label="End tutorial turn"
+                  title="End turn"
+                >
+                  <TbFlagCheck aria-hidden />
+                </button>
+              </div>
             </div>
-            <div className="mat-hand-cards">
-              {handExpanded &&
-                handCards.map((card) => (
+            {handExpanded && (
+              <div className="mat-hand-cards">
+                {handCards.map((card) => (
                   <DraggableHandCard
                     key={card.id}
                     card={card}
@@ -759,7 +1012,8 @@ export const TutorialRoom: React.FC = () => {
                     onInspect={() => setInspectCard(card)}
                   />
                 ))}
-            </div>
+              </div>
+            )}
           </div>
           <div className="tutorial-turn-tracker" aria-label={`Tutorial turn tracker: ${turnStatus}`}>
             <span>Turn {step.turn}</span>
