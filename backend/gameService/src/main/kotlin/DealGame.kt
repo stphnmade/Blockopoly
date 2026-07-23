@@ -12,14 +12,17 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
 import io.ktor.websocket.send
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
@@ -67,31 +70,56 @@ class DealGame(val roomId: String, val players: List<String>) {
                 val fakeCards = List(message.cards.size) {FAKE_CARD}
                 for ((player, session) in playerSockets) {
                     val cards = if (player == message.playerId) message.cards else fakeCards
-                    session.send(DrawMessage(message.playerId, cards).toJson())
+                    sendToPlayer(player, session, DrawMessage(message.playerId, cards).toJson())
                 }
             }
-            else -> for ((_, session) in playerSockets) {
-                session.send(message.toJson())
+            else -> for ((player, session) in playerSockets) {
+                sendToPlayer(player, session, message.toJson())
             }
         }
     }
 
     private suspend fun broadcastState(newState: GameState) {
         for ((id, session) in playerSockets) {
-            session.send(StateMessage(newState.getVisibleGameState(id)).toJson())
+            sendToPlayer(id, session, StateMessage(newState.getVisibleGameState(id)).toJson())
         }
+    }
+
+    private suspend fun sendToPlayer(playerId: String, session: WebSocketSession, payload: String): Boolean {
+        return try {
+            session.send(payload)
+            true
+        } catch (cancelled: CancellationException) {
+            if (!currentCoroutineContext().isActive) throw cancelled
+            playerSockets.remove(playerId, session)
+            false
+        } catch (_: Exception) {
+            // Remove only the session that failed. A newer connection for the same
+            // player may already have replaced it while this send was suspended.
+            playerSockets.remove(playerId, session)
+            false
+        }
+    }
+
+    fun disconnectPlayer(playerId: String, session: WebSocketSession) {
+        // A closing stale socket must not unregister a replacement connection.
+        playerSockets.remove(playerId, session)
     }
 
      @OptIn(FlowPreview::class)
      suspend fun connectPlayer(playerId: String, session: WebSocketSession) : CompletableDeferred<MutableStateFlow<GameState>>? {
         if (playerId in players) {
-            if (playerSockets.containsKey(playerId)) {
-                playerSockets.get(playerId)?.close(CloseReason(CloseReason.Codes.NORMAL, "Player started new connection"))
-                if (state.isCompleted) {
-                    session.send(StateMessage(state.await().value.getVisibleGameState(playerId)).toJson())
-                }
+            val previousSession = playerSockets.put(playerId, session)
+            if (previousSession != null && previousSession !== session) {
+                previousSession.close(CloseReason(CloseReason.Codes.NORMAL, "Player started new connection"))
             }
-            playerSockets[playerId] = session
+            if (state.isCompleted) {
+                sendToPlayer(
+                    playerId,
+                    session,
+                    StateMessage(state.await().value.getVisibleGameState(playerId)).toJson()
+                )
+            }
         } else return null
 
         if (playerSockets.size == players.size && !state.isCompleted) {

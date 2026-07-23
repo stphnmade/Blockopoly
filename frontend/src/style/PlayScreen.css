@@ -667,6 +667,7 @@ body,
 
 .hand-card.draggable {
   cursor: grab;
+  touch-action: none;
 }
 
 .hand-card.draggable:active {
@@ -677,6 +678,12 @@ body,
   opacity: 0.5;
   transform: rotate(5deg) scale(1.1);
   z-index: 1000;
+}
+
+.hand-card.moves-exhausted,
+.hand-card.moves-exhausted:hover {
+  cursor: not-allowed;
+  transform: translateY(0) scale(1) !important;
 }
 
 /* WebSocket status indicator */

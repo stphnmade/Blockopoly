@@ -4,8 +4,39 @@ import com.gameservice.models.*
 import com.gameservice.util.payRent
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PayTest {
+
+    @Test
+    fun `host receives rent payment in bank`() {
+        val moneyCard = cardMapping.values.first { it is Card.Money && it.value == 2 } as Card.Money
+        val hostId = "host"
+        val payerId = "guest"
+        val hostState = PlayerState(mutableListOf(), PropertyCollection(), mutableSetOf())
+        val payerState = PlayerState(
+            mutableListOf(),
+            PropertyCollection(),
+            mutableSetOf(moneyCard)
+        )
+        val gameState = GameState(
+            playerAtTurn = hostId,
+            winningPlayer = null,
+            drawPile = mutableListOf(),
+            discardPile = mutableListOf(),
+            playerState = mutableMapOf(hostId to hostState, payerId to payerState),
+            playerOrder = listOf(hostId, payerId),
+            cardsLeftToPlay = MAX_CARDS_PER_TURN,
+            pendingInteractions = Interactions(),
+            turnStarted = true
+        )
+
+        val response = payRent(gameState, payerId, hostId, listOf(moneyCard.id), 2)
+
+        assertTrue(response.success)
+        assertFalse(payerState.bank.contains(moneyCard))
+        assertTrue(hostState.bank.contains(moneyCard))
+    }
 
     @Test
     fun `test payRent does not allow paying with a 10-color wildcard`() {

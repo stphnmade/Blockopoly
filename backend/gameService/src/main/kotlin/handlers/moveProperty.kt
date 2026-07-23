@@ -66,6 +66,15 @@ suspend fun moveProperty(room: DealGame, game: MutableStateFlow<GameState>, play
             propertyColors.size > 1 -> if (targetColor != null && propertyColors.contains(targetColor)) targetColor else return current
             else -> if (targetColor != null && propertyColors.contains(targetColor)) targetColor else return current
         }
+
+        // Validate the destination before changing the source collection. Property moves
+        // must be atomic: a rejected destination cannot remove a card or its developments.
+        if (isNewSet) {
+            val candidate = PropertySet("NEW_SET", color = targetColor)
+            if (!candidate.canAcceptProperty(propertyToMove, effectiveColor)) return current
+        } else if (toSet?.canAcceptProperty(propertyToMove, effectiveColor) != true) {
+            return current
+        }
         
         // Remove property from source set
         val (wasRemoved, removedDevelopments) = fromSet.removeProperty(propertyToMove)
@@ -87,13 +96,13 @@ suspend fun moveProperty(room: DealGame, game: MutableStateFlow<GameState>, play
         val finalToSetId = if (isNewSet) {
             val newSetId = UUID.randomUUID().toString().replace("-", "")
             val newSet = PropertySet(newSetId, color = targetColor)
-            newSet.addProperty(propertyToMove, effectiveColor)
+            if (!newSet.addProperty(propertyToMove, effectiveColor)) return current
             playerState.propertyCollection.addPropertySet(newSet)
             newSetId
         } else {
             val existingSet = toSet ?: return current
             // Add property to target set with effective color
-            existingSet.addProperty(propertyToMove, effectiveColor)
+            if (!existingSet.addProperty(propertyToMove, effectiveColor)) return current
 
             // Update property-to-set mapping by removing and re-adding the set
             // This ensures the internal mapping is updated correctly

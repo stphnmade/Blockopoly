@@ -25,20 +25,25 @@ fun Application.configureRouting() {
             webSocket{
                 val roomId = call.parameters["roomId"] ?: return@webSocket
                 val playerId = call.parameters["playerId"] ?: return@webSocket
-                ServerManager.connectToRoom(roomId, playerId, this)?.await() ?: return@webSocket
-                val game = ServerManager.getRoom(roomId)!!
-                incoming.consumeEach { frame ->
-                    if (frame is Frame.Text) {
-                        val actionCommand = Json.decodeFromString<GameAction>(frame.readText())
-                        when (actionCommand) {
-                            is StartTurn -> {}
-                            is Ping -> {
-                                // Simple echo; game loop is still driven by other commands.
-                                outgoing.send(Frame.Text(Json.encodeToString(GameAction.serializer(), Pong(actionCommand.ts))))
+                val game = ServerManager.getRoom(roomId) ?: return@webSocket
+                val connectedState = game.connectPlayer(playerId, this) ?: return@webSocket
+                try {
+                    connectedState.await()
+                    incoming.consumeEach { frame ->
+                        if (frame is Frame.Text) {
+                            val actionCommand = Json.decodeFromString<GameAction>(frame.readText())
+                            when (actionCommand) {
+                                is StartTurn -> {}
+                                is Ping -> {
+                                    // Simple echo; game loop is still driven by other commands.
+                                    outgoing.send(Frame.Text(Json.encodeToString(GameAction.serializer(), Pong(actionCommand.ts))))
+                                }
+                                else -> game.sendCommand(Command(playerId, actionCommand))
                             }
-                            else -> game.sendCommand(Command(playerId, actionCommand))
                         }
                     }
+                } finally {
+                    game.disconnectPlayer(playerId, this)
                 }
             }
         }

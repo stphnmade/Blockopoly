@@ -12,21 +12,23 @@ class PropertyCollection {
     fun addProperty(property: Card.Property, withColor: Color?) : String? {
         if (withColor != null && !property.colors.contains(withColor)) return null
         if (withColor == null && property.colors != ALL_COLOR_SET) return null // Only rainbow wild can be placed with no color
-        val result = collection.entries.find {
-                (_, propertySet) -> propertySet.color == withColor && !propertySet.isComplete
-        } ?: collection.entries.find { (_, propertySet) -> propertySet.color == null && !propertySet.isComplete }
+        val result = collection.entries.find { (_, propertySet) ->
+            propertySet.color == withColor && propertySet.canAcceptProperty(property, withColor)
+        } ?: collection.entries.find { (_, propertySet) ->
+            propertySet.color == null && propertySet.canAcceptProperty(property, withColor)
+        }
         if (result == null) {
             val setId = UUID.randomUUID().toString().replace("-","")
             val newSet = PropertySet(
                 setId,
                 color = if (property.colors != ALL_COLOR_SET) withColor else null
             )
-            collection.put(setId, newSet)
-            newSet.addProperty(property, withColor)
+            if (!newSet.addProperty(property, withColor)) return null
+            collection[setId] = newSet
             propertyToSetId[property.id] = setId
             return setId
         } else {
-            result.value.addProperty(property, withColor)
+            if (!result.value.addProperty(property, withColor)) return null
             propertyToSetId[property.id] = result.key
             return result.key
         }
@@ -132,12 +134,18 @@ data class PropertySet(val propertySetId: String, val properties: MutableList<Ca
         return colorToRent[color]!![properties.size - 1] + (house?.value ?: 0) + (hotel?.value ?: 0)
     }
 
-    fun addProperty(property: Card.Property, withColor: Color?) {
-        // Prevents single-color set invariant break
-        if (withColor == null && property.colors != ALL_COLOR_SET) return
-        if (withColor != null && !property.colors.contains(withColor)) return
-        if (withColor != color && color != null) return
-        if (isComplete) return // Prevents oversized set
+    fun canAcceptProperty(property: Card.Property, withColor: Color?): Boolean {
+        if (withColor == null && property.colors != ALL_COLOR_SET) return false
+        if (withColor != null && !property.colors.contains(withColor)) return false
+        if (withColor != color && color != null) return false
+
+        val effectiveColor = color ?: if (property.colors == ALL_COLOR_SET) null else withColor
+        if (effectiveColor != null && properties.size >= colorToRent.getValue(effectiveColor).size) return false
+        return !isComplete
+    }
+
+    fun addProperty(property: Card.Property, withColor: Color?): Boolean {
+        if (!canAcceptProperty(property, withColor)) return false
         if (color == null) {
             color = if (property.colors == ALL_COLOR_SET) null else withColor // Rainbow Wild can't determine color
         }
@@ -145,6 +153,7 @@ data class PropertySet(val propertySetId: String, val properties: MutableList<Ca
         if (isCompleteSet()) {
             isComplete = true
         }
+        return true
     }
 
     fun removeProperty(property: Card.Property) : Pair<Boolean, Set<Card>?> {

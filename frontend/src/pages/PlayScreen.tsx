@@ -16,7 +16,9 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   rectIntersection,
   useDraggable,
   useDroppable,
@@ -197,6 +199,25 @@ const DEBT_COLLECTOR_PAYMENT_AMOUNT = 5;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
 const WS_DEBUG = import.meta.env.VITE_DEBUG_WS === "true";
 const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
+const PROPERTY_SET_CAPACITY: Record<string, number> = {
+  BLUE: 2,
+  BROWN: 2,
+  GREEN: 3,
+  MAGENTA: 3,
+  ORANGE: 3,
+  RAILROAD: 4,
+  RED: 3,
+  TURQOUISE: 3,
+  UTILITY: 2,
+  YELLOW: 3,
+};
+
+const propertySetHasRoom = (set: PropertySetView) => {
+  if (set.isComplete) return false;
+  if (!set.color) return true;
+  const capacity = PROPERTY_SET_CAPACITY[set.color];
+  return capacity === undefined || set.properties.length < capacity;
+};
 
 const ACTION_DROP_TYPES = new Set([
   "PASS_GO",
@@ -230,7 +251,9 @@ const gameCollisionDetection: CollisionDetection = (args) => {
     const zone = container.id as GameDropZone;
     return ["bank", "property-area", "action-area"].includes(zone) && isValidDrop(zone, card);
   });
-  return rectIntersection({ ...args, droppableContainers: supportedContainers });
+  const supportedArgs = { ...args, droppableContainers: supportedContainers };
+  const pointerCollisions = pointerWithin(supportedArgs);
+  return pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(supportedArgs);
 };
 
 const GameDropTarget: React.FC<{
@@ -270,10 +293,11 @@ const GameDropTarget: React.FC<{
 const DraggableCard: React.FC<{
   card: ServerCard;
   canDrag: boolean;
+  movesExhausted: boolean;
   dragEnabled: boolean;
   onClick: () => void;
   onOptions: () => void;
-}> = ({ card, canDrag, dragEnabled, onClick, onOptions }) => {
+}> = ({ card, canDrag, movesExhausted, dragEnabled, onClick, onOptions }) => {
   const draggable = dragEnabled && canDrag;
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `hand:${card.id}`,
@@ -286,13 +310,26 @@ const DraggableCard: React.FC<{
       ref={setNodeRef}
       className={`hand-card ${canDrag ? "clickable" : ""} ${
         draggable ? "draggable" : ""
-      } ${isDragging ? "dragging" : ""}`}
+      } ${movesExhausted ? "moves-exhausted" : ""} ${isDragging ? "dragging" : ""}`}
       onClick={(e) => {
         e.preventDefault();
         onClick();
       }}
+      onKeyDown={
+        draggable
+          ? undefined
+          : (event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onClick();
+            }
+      }
       {...(draggable ? listeners : {})}
-      {...(draggable ? attributes : {})}
+      {...(
+        draggable
+          ? attributes
+          : { role: "button", tabIndex: canDrag ? 0 : -1, "aria-disabled": !canDrag }
+      )}
       title={`${card.type}${card.actionType ? `: ${card.actionType}` : ""}`}
     >
       <img src={assetForCard(card)} alt={card.type} draggable={false} />
@@ -301,7 +338,6 @@ const DraggableCard: React.FC<{
         className="hand-card-options"
         aria-label="Show card options"
         title="Card options"
-        onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -498,7 +534,8 @@ const PlayScreen: React.FC = () => {
   const dndSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 12 },
-    })
+    }),
+    useSensor(KeyboardSensor)
   );
 
   const wsUrl = useMemo(
@@ -903,17 +940,33 @@ const PlayScreen: React.FC = () => {
       navigate("/");
       return;
     }
+    const existing = wsRef.current;
+    if (
+      existing &&
+      (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
     const ws = new WebSocket(wsUrl);
     if (WS_DEBUG) console.info("[WS] attempting connect", { wsUrl, roomId, myPID });
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (wsRef.current !== ws) {
+        ws.close();
+        return;
+      }
       if (WS_DEBUG) console.info("[WS] connected", { wsUrl });
       setWsReady(true);
       backoffRef.current = 500;
     };
 
     ws.onmessage = (evt) => {
+      if (wsRef.current !== ws) return;
       if (WS_DEBUG) console.debug("[WS] raw message", evt.data);
       try {
         const msg: StateEnvelope = JSON.parse(evt.data);
@@ -1244,10 +1297,13 @@ const PlayScreen: React.FC = () => {
     };
 
     ws.onerror = (err) => {
+      if (wsRef.current !== ws) return;
       if (WS_DEBUG) console.error("[WS] error event", err);
     };
 
     ws.onclose = (ev) => {
+      if (wsRef.current !== ws) return;
+      wsRef.current = null;
       if (!shouldReconnectRef.current) {
         return;
       }
@@ -1272,8 +1328,9 @@ const PlayScreen: React.FC = () => {
     return () => {
       shouldReconnectRef.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+      const currentSocket = wsRef.current;
       wsRef.current = null;
+      currentSocket?.close();
     };
   }, [bootstrapChecked, connect]);
 
@@ -1601,7 +1658,7 @@ const PlayScreen: React.FC = () => {
     const isRainbow = isRainbowCard(cardColors);
     const existing = myPropertySets.filter((set) => {
       if (set.id === positioningCard.fromSetId) return false;
-      if (set.isComplete) return false;
+      if (!propertySetHasRoom(set)) return false;
       if (isRainbow) return true;
       if (!set.color) return false;
       return cardColors.includes(set.color);
@@ -1785,7 +1842,7 @@ const PlayScreen: React.FC = () => {
         const allowedColors = Array.from(
           new Set(
             myPropertySets
-              .filter((set) => !set.isComplete && set.color && colors.includes(set.color))
+              .filter((set) => propertySetHasRoom(set) && set.color && colors.includes(set.color))
               .map((set) => set.color as string)
           )
         );
@@ -1861,7 +1918,7 @@ const PlayScreen: React.FC = () => {
       const allowedColors = Array.from(
         new Set(
           myPropertySets
-            .filter((set) => !set.isComplete && set.color && colors.includes(set.color))
+            .filter((set) => propertySetHasRoom(set) && set.color && colors.includes(set.color))
             .map((set) => set.color as string)
         )
       );
@@ -2288,7 +2345,7 @@ const PlayScreen: React.FC = () => {
         const allowedColors = Array.from(
           new Set(
             myPropertySets
-              .filter((set) => !set.isComplete && set.color && colors.includes(set.color))
+              .filter((set) => propertySetHasRoom(set) && set.color && colors.includes(set.color))
               .map((set) => set.color as string)
           )
         );
@@ -3574,7 +3631,7 @@ const PlayScreen: React.FC = () => {
           </div>
           <div className="mat-hand-cards">
             {handExpanded &&
-              myHand.map((card, idx) => {
+              myHand.map((card) => {
                 const isPassGo =
                   card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
                 const canDrag =
@@ -3587,9 +3644,10 @@ const PlayScreen: React.FC = () => {
                     isPassGo);
                 return (
                   <DraggableCard
-                    key={`${card.id}-${idx}`}
+                    key={card.id}
                     card={card}
                     canDrag={canDrag}
+                    movesExhausted={isMyTurn && playsLeft <= 0}
                     dragEnabled={dragDropEnabled}
                     onClick={() => playCardPrimary(card)}
                     onOptions={() => openCardOptions(card)}

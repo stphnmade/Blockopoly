@@ -29,13 +29,15 @@ suspend fun playProperty(room: DealGame, game: MutableStateFlow<GameState>, play
                 .propertyCollection
                 .collection
                 .values
-                .any { set -> !set.isComplete && set.color == targetColor }
+                .any { set ->
+                    set.color == targetColor && set.canAcceptProperty(card, targetColor)
+                }
             if (!hasCompatibleSet) return current
         }
 
+        val propertySetId = playerState.addProperty(card, playProperty.color) ?: return current
         playerState.hand.removeIf { it.id == card.id }
-        val propertySetId = playerState.addProperty(card, playProperty.color)
-        room.sendBroadcast(PlacePropertyMessage(playerId, card, propertySetId!!))
+        room.sendBroadcast(PlacePropertyMessage(playerId, card, propertySetId))
         val cardsLeft = current.cardsLeftToPlay - 1
         var winner: String? = null
         if (playerState.numCompleteSets() == NUM_COMPLETE_SETS_TO_WIN) winner = playerId
