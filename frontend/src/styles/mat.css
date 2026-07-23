@@ -316,10 +316,10 @@
 
 .mat-hand-row.hand-window.vertical .hand-card {
   width: 96px;
-  height: 136px;
+  height: 144px;
   min-width: 96px;
-  min-height: 136px;
-  flex: 0 0 136px;
+  min-height: 144px;
+  flex: 0 0 144px;
   scroll-snap-align: start;
 }
 
