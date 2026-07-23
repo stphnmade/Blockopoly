@@ -29,8 +29,12 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
+  TbFlagCheck,
   TbChevronDown,
   TbChevronUp,
+  TbGripHorizontal,
+  TbLayoutBottombar,
+  TbRotate,
   TbSettings,
   TbZoomInArea,
 } from "react-icons/tb";
@@ -69,6 +73,13 @@ import type {
 import { PRELOAD_SFX, SFX_ACTION_OVERLAY, resolveActionSfx } from "../utils/soundBoard";
 
 type GameDropZone = "bank" | "property-area" | "action-area";
+type HandOrientation = "horizontal" | "vertical";
+type HandWindowLayout = {
+  mode: "docked" | "floating";
+  orientation: HandOrientation;
+  x: number;
+  y: number;
+};
 type DropRect = { left: number; top: number; width: number; height: number };
 type DropSnap = {
   id: number;
@@ -199,6 +210,13 @@ const DEBT_COLLECTOR_PAYMENT_AMOUNT = 5;
 const NEW_PROPERTY_SET_ID = "NEW_SET";
 const WS_DEBUG = import.meta.env.VITE_DEBUG_WS === "true";
 const ROOM_HEARTBEAT_INTERVAL_MS = 20000;
+const HAND_LAYOUT_STORAGE_KEY = "BLOCKOPOLY_HAND_LAYOUT";
+const DEFAULT_HAND_LAYOUT: HandWindowLayout = {
+  mode: "docked",
+  orientation: "horizontal",
+  x: 20,
+  y: 96,
+};
 const PROPERTY_SET_CAPACITY: Record<string, number> = {
   BLUE: 2,
   BROWN: 2,
@@ -217,6 +235,25 @@ const propertySetHasRoom = (set: PropertySetView) => {
   if (!set.color) return true;
   const capacity = PROPERTY_SET_CAPACITY[set.color];
   return capacity === undefined || set.properties.length < capacity;
+};
+
+const readHandLayout = (): HandWindowLayout => {
+  if (typeof window === "undefined") return DEFAULT_HAND_LAYOUT;
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(HAND_LAYOUT_STORAGE_KEY) ?? "null");
+    if (
+      stored &&
+      (stored.mode === "docked" || stored.mode === "floating") &&
+      (stored.orientation === "horizontal" || stored.orientation === "vertical") &&
+      Number.isFinite(stored.x) &&
+      Number.isFinite(stored.y)
+    ) {
+      return stored as HandWindowLayout;
+    }
+  } catch {
+    // Ignore invalid saved layout and use the stable default.
+  }
+  return DEFAULT_HAND_LAYOUT;
 };
 
 const ACTION_DROP_TYPES = new Set([
@@ -455,6 +492,8 @@ const PlayScreen: React.FC = () => {
   const [myHand, setMyHand] = useState<ServerCard[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [handExpanded, setHandExpanded] = useState(true);
+  const [handLayout, setHandLayout] = useState<HandWindowLayout>(readHandLayout);
+  const [isDraggingHand, setIsDraggingHand] = useState(false);
   const [wsReady, setWsReady] = useState(false);
   const [menuCard, setMenuCard] = useState<ServerCard | null>(null);
   const [inspectCard, setInspectCard] = useState<ServerCard | null>(null);
@@ -530,6 +569,14 @@ const PlayScreen: React.FC = () => {
   const sfxPoolRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const sfxFadeTimersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
   const playAreaRef = useRef<HTMLDivElement | null>(null);
+  const handWindowRef = useRef<HTMLDivElement | null>(null);
+  const handDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
   const dropSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dndSensors = useSensors(
     useSensor(PointerSensor, {
@@ -560,6 +607,10 @@ const PlayScreen: React.FC = () => {
       dragDropEnabled ? "true" : "false"
     );
   }, [dragDropEnabled]);
+
+  useEffect(() => {
+    window.localStorage.setItem(HAND_LAYOUT_STORAGE_KEY, JSON.stringify(handLayout));
+  }, [handLayout]);
 
   useEffect(
     () => () => {
@@ -3260,6 +3311,128 @@ const PlayScreen: React.FC = () => {
     }
   }, [isMuted, volume]);
 
+  const clampHandWindowPosition = useCallback((x: number, y: number) => {
+    const rect = handWindowRef.current?.getBoundingClientRect();
+    const width = rect?.width ?? 320;
+    const height = rect?.height ?? 180;
+    const margin = 8;
+    return {
+      x: Math.min(Math.max(margin, x), Math.max(margin, window.innerWidth - width - margin)),
+      y: Math.min(Math.max(margin, y), Math.max(margin, window.innerHeight - height - margin)),
+    };
+  }, []);
+
+  const beginHandWindowDrag = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      const rect = handWindowRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const origin = clampHandWindowPosition(rect.left, rect.top);
+      handDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: origin.x,
+        originY: origin.y,
+      };
+      setHandLayout((prev) => ({ ...prev, mode: "floating", ...origin }));
+      setIsDraggingHand(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    },
+    [clampHandWindowPosition]
+  );
+
+  const moveHandWindow = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const drag = handDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const next = clampHandWindowPosition(
+        drag.originX + event.clientX - drag.startX,
+        drag.originY + event.clientY - drag.startY
+      );
+      setHandLayout((prev) => ({ ...prev, mode: "floating", ...next }));
+    },
+    [clampHandWindowPosition]
+  );
+
+  const finishHandWindowDrag = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = handDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    handDragRef.current = null;
+    setIsDraggingHand(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const moveHandWindowWithKeyboard = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      const deltas: Partial<Record<string, [number, number]>> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      const delta = deltas[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      const rect = handWindowRef.current?.getBoundingClientRect();
+      const step = event.shiftKey ? 32 : 12;
+      const originX = handLayout.mode === "floating" ? handLayout.x : rect?.left ?? 20;
+      const originY = handLayout.mode === "floating" ? handLayout.y : rect?.top ?? 96;
+      const next = clampHandWindowPosition(
+        originX + delta[0] * step,
+        originY + delta[1] * step
+      );
+      setHandLayout((prev) => ({ ...prev, mode: "floating", ...next }));
+    },
+    [clampHandWindowPosition, handLayout]
+  );
+
+  const rotateHandWindow = useCallback(() => {
+    const rect = handWindowRef.current?.getBoundingClientRect();
+    setHandLayout((prev) => {
+      const orientation: HandOrientation =
+        prev.orientation === "horizontal" ? "vertical" : "horizontal";
+      const origin =
+        prev.mode === "floating"
+          ? { x: prev.x, y: prev.y }
+          : clampHandWindowPosition(rect?.left ?? 20, rect?.top ?? 96);
+      return { ...prev, mode: "floating", orientation, ...origin };
+    });
+  }, [clampHandWindowPosition]);
+
+  const dockHandWindow = useCallback(() => {
+    setIsDraggingHand(false);
+    handDragRef.current = null;
+    setHandLayout((prev) => ({ ...prev, mode: "docked", orientation: "horizontal" }));
+  }, []);
+
+  useLayoutEffect(() => {
+    if (handLayout.mode !== "floating") return;
+    const frame = window.requestAnimationFrame(() => {
+      setHandLayout((prev) => {
+        if (prev.mode !== "floating") return prev;
+        const next = clampHandWindowPosition(prev.x, prev.y);
+        return next.x === prev.x && next.y === prev.y ? prev : { ...prev, ...next };
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [clampHandWindowPosition, handExpanded, handLayout.mode, handLayout.orientation]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setHandLayout((prev) => {
+        if (prev.mode !== "floating") return prev;
+        const next = clampHandWindowPosition(prev.x, prev.y);
+        return next.x === prev.x && next.y === prev.y ? prev : { ...prev, ...next };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [clampHandWindowPosition]);
+
   return (
     <DndContext
       sensors={dndSensors}
@@ -3596,10 +3769,22 @@ const PlayScreen: React.FC = () => {
       {/* Actions: the End Turn button is rendered as a portal into document.body
         so it centers relative to the viewport */}
 
-      {/* Hand and inline End Turn button (joined to hand overlay) */}
-      <div className={`mat-hand-overlay ${isAnimating ? "animating" : ""}`}>
-        <div className="mat-hand-row">
-          <div className="mat-hand-side">
+      {/* Movable hand window. The grip moves the tray; cards keep their own drag behavior. */}
+      <div
+        ref={handWindowRef}
+        className={`mat-hand-overlay hand-window-shell ${handLayout.mode}`}
+        style={
+          handLayout.mode === "floating"
+            ? { left: handLayout.x, top: handLayout.y, bottom: "auto", transform: "none" }
+            : undefined
+        }
+      >
+        <div
+          className={`mat-hand-row hand-window ${handLayout.orientation} ${
+            handExpanded ? "expanded" : "collapsed"
+          } ${isDraggingHand ? "moving" : ""} ${isAnimating ? "animating" : ""}`}
+        >
+          <div className="hand-window-toolbar">
             <div className="hand-player-meta">
               <span className="hand-kicker">Your hand</span>
               <div className="hand-player-line">
@@ -3609,29 +3794,68 @@ const PlayScreen: React.FC = () => {
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              className="hand-collapse-btn"
-              onClick={() => setHandExpanded((s) => !s)}
-              aria-expanded={handExpanded}
-              aria-label={handExpanded ? "Collapse hand" : "Show hand"}
-              title={handExpanded ? "Collapse hand" : "Show hand"}
-            >
-              {handExpanded ? <TbChevronDown aria-hidden /> : <TbChevronUp aria-hidden />}
-              <span>{handExpanded ? "Collapse" : "Show cards"}</span>
-            </button>
-            <button
-              type="button"
-              className="end-turn-button"
-              onClick={sendEndTurn}
-              disabled={!isMyTurn || isDiscarding || isPositioning}
-            >
-              End Turn
-            </button>
+            <div className="hand-window-controls" aria-label="Hand window controls">
+              <button
+                type="button"
+                className="hand-window-icon hand-window-grip"
+                onPointerDown={beginHandWindowDrag}
+                onPointerMove={moveHandWindow}
+                onPointerUp={finishHandWindowDrag}
+                onPointerCancel={finishHandWindowDrag}
+                onLostPointerCapture={() => {
+                  handDragRef.current = null;
+                  setIsDraggingHand(false);
+                }}
+                onKeyDown={moveHandWindowWithKeyboard}
+                aria-label="Move hand window"
+                title="Move hand window"
+              >
+                <TbGripHorizontal aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="hand-window-icon"
+                onClick={rotateHandWindow}
+                aria-label="Rotate hand"
+                title="Rotate hand"
+              >
+                <TbRotate aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="hand-window-icon"
+                onClick={dockHandWindow}
+                disabled={handLayout.mode === "docked"}
+                aria-label="Dock hand"
+                title="Dock hand"
+              >
+                <TbLayoutBottombar aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="hand-window-icon"
+                onClick={() => setHandExpanded((expanded) => !expanded)}
+                aria-expanded={handExpanded}
+                aria-label={handExpanded ? "Collapse hand" : "Show hand"}
+                title={handExpanded ? "Collapse hand" : "Show hand"}
+              >
+                {handExpanded ? <TbChevronDown aria-hidden /> : <TbChevronUp aria-hidden />}
+              </button>
+              <button
+                type="button"
+                className="hand-window-icon hand-window-end-turn"
+                onClick={sendEndTurn}
+                disabled={!isMyTurn || isDiscarding || isPositioning}
+                aria-label="End turn"
+                title="End turn"
+              >
+                <TbFlagCheck aria-hidden />
+              </button>
+            </div>
           </div>
-          <div className="mat-hand-cards">
-            {handExpanded &&
-              myHand.map((card) => {
+          {handExpanded && (
+            <div className="mat-hand-cards">
+              {myHand.map((card) => {
                 const isPassGo =
                   card.type === "GENERAL_ACTION" && card.actionType === "PASS_GO";
                 const canDrag =
@@ -3654,7 +3878,8 @@ const PlayScreen: React.FC = () => {
                   />
                 );
               })}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
